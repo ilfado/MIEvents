@@ -65,6 +65,25 @@ export function openDb(dbPath: string): DatabaseSync {
     CREATE INDEX IF NOT EXISTS idx_events_city ON events(city);
     CREATE INDEX IF NOT EXISTS idx_events_category ON events(category);
     CREATE INDEX IF NOT EXISTS idx_events_geo ON events(lat, lon);
+    CREATE VIRTUAL TABLE IF NOT EXISTS events_fts USING fts5(
+      title, description, city, venue, organizer,
+      content='events', content_rowid='rowid',
+      tokenize='unicode61 remove_diacritics 2'
+    );
+    CREATE TRIGGER IF NOT EXISTS events_fts_ai AFTER INSERT ON events BEGIN
+      INSERT INTO events_fts(rowid, title, description, city, venue, organizer)
+      VALUES (new.rowid, new.title, new.description, new.city, new.venue, new.organizer);
+    END;
+    CREATE TRIGGER IF NOT EXISTS events_fts_ad AFTER DELETE ON events BEGIN
+      INSERT INTO events_fts(events_fts, rowid, title, description, city, venue, organizer)
+      VALUES ('delete', old.rowid, old.title, old.description, old.city, old.venue, old.organizer);
+    END;
+    CREATE TRIGGER IF NOT EXISTS events_fts_au AFTER UPDATE ON events BEGIN
+      INSERT INTO events_fts(events_fts, rowid, title, description, city, venue, organizer)
+      VALUES ('delete', old.rowid, old.title, old.description, old.city, old.venue, old.organizer);
+      INSERT INTO events_fts(rowid, title, description, city, venue, organizer)
+      VALUES (new.rowid, new.title, new.description, new.city, new.venue, new.organizer);
+    END;
     CREATE TABLE IF NOT EXISTS sync_state (
       key TEXT PRIMARY KEY,
       value TEXT NOT NULL

@@ -65,6 +65,7 @@ body {
 
 .map-wrap { position: relative; }
 .map { height: min(70vh, 640px); width: 100%; border-radius: 14px; border: 1px solid var(--border); z-index: 0; }
+.map-fallback { display: flex; align-items: center; justify-content: center; color: var(--muted); background: var(--card); }
 .map-detail { position: absolute; right: 10px; top: 10px; width: min(340px, 90vw); z-index: 1000; box-shadow: 0 8px 24px rgba(0,0,0,0.15); border-radius: 14px; }
 
 .mievents-pin span { display: block; width: 22px; height: 22px; border-radius: 50% 50% 50% 0; transform: rotate(-45deg); border: 2px solid #fff; box-shadow: 0 1px 4px rgba(0,0,0,0.4); }

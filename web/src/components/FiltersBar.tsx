@@ -1,5 +1,5 @@
 import { EVENT_CATEGORIES, type EventCategory } from "@mievents/shared";
-import type { Filters } from "../api.js";
+import { EMPTY_FILTERS, type Filters } from "../api.js";
 import { categoryLabel } from "../format.js";
 
 export function FiltersBar({
@@ -55,7 +55,7 @@ export function FiltersBar({
           Al
           <input type="date" value={filters.to} onChange={(e) => set({ to: e.target.value })} />
         </label>
-        <button type="button" className="btn-reset" onClick={() => onChange({ q: "", city: "", category: "", from: "", to: "" })}>
+        <button type="button" className="btn-reset" onClick={() => onChange({ ...EMPTY_FILTERS })}>
           Azzera
         </button>
         <span className="result-count">{resultCount} eventi</span>

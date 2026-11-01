@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { MiEvent } from "@mievents/shared";
-import { fetchCities, fetchEvents, toggleSaved, type Filters } from "./api.js";
+import { EMPTY_FILTERS, fetchCities, fetchEvents, toggleSaved, type Filters } from "./api.js";
 import { EventCard } from "./components/EventCard.js";
-import { EventMap } from "./components/EventMap.js";
 import { FiltersBar } from "./components/FiltersBar.js";
+import { lazy, Suspense } from "react";
 
-const EMPTY_FILTERS: Filters = { q: "", city: "", category: "", from: "", to: "" };
+const EventMap = lazy(() => import("./components/EventMap.js").then((m) => ({ default: m.EventMap })));
 
 export default function App() {
   const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
@@ -40,7 +40,7 @@ export default function App() {
 
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => void load(filters), 250);
+    debounceRef.current = setTimeout(() => void load(filters), filters.q ? 350 : 0);
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
@@ -117,7 +117,9 @@ export default function App() {
         </main>
       ) : (
         <main className="map-wrap">
-          <EventMap events={events} selectedId={selectedId} onSelect={onSelect} onBbox={onBbox} recenterKey={recenterKey} />
+          <Suspense fallback={<div className="map map-fallback">Caricamento mappa…</div>}>
+            <EventMap events={events} selectedId={selectedId} onSelect={onSelect} onBbox={onBbox} recenterKey={recenterKey} />
+          </Suspense>
           {selected && (
             <div className="map-detail">
               <EventCard event={selected} selected onSelect={onSelect} onToggleSaved={onToggleSaved} />
