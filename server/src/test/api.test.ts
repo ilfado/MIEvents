@@ -65,21 +65,21 @@ test("syncEvents records errors and keeps partial data", async () => {
 test("queryEvents filters by city, category, date range and bbox", async () => {
   const db = openDb(":memory:");
   await syncEvents(db, { fetchImpl: mockFetch(sampleRows), geocode: false, feeds: false, milanotoday: false });
-  const all = queryEvents(db, {});
+  const all = queryEvents(db, { includePast: true });
   assert.equal(all.total, 3);
-  const milano = queryEvents(db, { city: "milano" });
+  const milano = queryEvents(db, { city: "milano", includePast: true });
   assert.equal(milano.total, 1);
   assert.equal(milano.events[0].city, "MILANO");
-  const concerti = queryEvents(db, { category: "concerto" });
+  const concerti = queryEvents(db, { category: "concerto", includePast: true });
   assert.equal(concerti.total, 1);
   const future = queryEvents(db, { from: "2026-01-01" });
   assert.equal(future.total, 2);
   const range = queryEvents(db, { from: "2026-09-01", to: "2026-09-30" });
   assert.equal(range.total, 1);
-  const q = queryEvents(db, { q: "birra" });
+  const q = queryEvents(db, { q: "birra", includePast: true });
   assert.equal(q.total, 1);
   db.prepare("UPDATE events SET lat=45.46, lon=9.19 WHERE city='MILANO'").run();
-  const bbox = queryEvents(db, { bbox: "45.0,9.0,46.0,10.0" });
+  const bbox = queryEvents(db, { bbox: "45.0,9.0,46.0,10.0", includePast: true });
   assert.equal(bbox.total, 1);
   assert.throws(() => queryEvents(db, { bbox: "bad" }), /bbox/);
   assert.throws(() => queryEvents(db, { category: "nope" as never }), /category/);
@@ -88,13 +88,13 @@ test("queryEvents filters by city, category, date range and bbox", async () => {
 test("saved flag toggles and savedOnly filter works", async () => {
   const db = openDb(":memory:");
   await syncEvents(db, { fetchImpl: mockFetch(sampleRows), geocode: false, feeds: false, milanotoday: false });
-  const ev = queryEvents(db, { city: "senago" }).events[0];
+  const ev = queryEvents(db, { city: "senago", includePast: true }).events[0];
   assert.equal(ev.saved, false);
   assert.ok(setSaved(db, ev.id, true));
   const after = getEvent(db, ev.id);
   assert.equal(after?.saved, true);
-  assert.equal(queryEvents(db, { savedOnly: true }).total, 1);
-  assert.equal(queryEvents(db, { category: "saved" }).total, 1);
+  assert.equal(queryEvents(db, { savedOnly: true, includePast: true }).total, 1);
+  assert.equal(queryEvents(db, { category: "saved", includePast: true }).total, 1);
   assert.ok(!setSaved(db, "missing-id", true));
 });
 
@@ -114,7 +114,7 @@ test("HTTP API serves events, saves and returns 404/400", async () => {
   const health = await get("/api/health");
   assert.deepEqual(health.body, { ok: true });
 
-  const all = await get("/api/events");
+  const all = await get("/api/events?includePast=1");
   assert.equal(all.status, 200);
   assert.equal(all.body.total, 3);
 
@@ -133,7 +133,7 @@ test("HTTP API serves events, saves and returns 404/400", async () => {
   assert.equal(saved.status, 200);
   assert.equal((await saved.json()).saved, true);
 
-  const savedList = await get("/api/events?saved=1");
+  const savedList = await get("/api/events?saved=1&includePast=1");
   assert.equal(savedList.body.total, 1);
 
   const missing = await fetch(`http://127.0.0.1:${port}/api/events/nope`, {

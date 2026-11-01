@@ -147,7 +147,7 @@ export async function fetchMilanotodayEvents(opts: MilanotodayConnectorOpts = {}
   const delay = opts.detailDelayMs ?? 700;
   const today = new Date();
   const from = opts.from ?? today.toISOString().slice(0, 10);
-  const end = new Date(today.getTime() + 90 * 86400000);
+  const end = new Date(today.getTime() + 60 * 86400000);
   const to = opts.to ?? end.toISOString().slice(0, 10);
 
   const detailUrls: string[] = [];
@@ -178,6 +178,7 @@ export async function fetchMilanotodayEvents(opts: MilanotodayConnectorOpts = {}
       const html = await res.text();
       const ev = parseEventJsonLd(html, url);
       if (!ev) continue;
+      if (ev.start < from) continue;
       const key = `${ev.title}|${ev.start}`;
       if (seen.has(key)) continue;
       seen.add(key);

@@ -37,7 +37,27 @@ categoria, intervallo date, bounding box, salvati.
 - Se ArciBellezza espone in futuro un feed iCal/RSS pubblico o una REST API aperta, basta aggiungere
   un `Connector` in `connectors.ts`.
 
-## 5. RSS notizie (RIMOSSI dall'indice)
+## Geolocalizzazione: tabella `venues`
+
+I locali/location sono indicizzati in una tabella dedicata `venues(id, name, address, city, lat, lon)`:
+- ogni evento con venue/indirizzo fa upsert del venue e riusa le coordinate già geocodificate
+  (1 sola chiamata Nominatim per venue, non per evento);
+- `GET /api/venues` elenca i locali noti;
+- gli eventi ereditano lat/lon dal venue (`attachVenueCoords`).
+- `https://arcibellezza.it/eventi/` e `/feed/` e `/wp-json/...` rispondono **202 con challenge
+  anti-bot SG Captcha** (SiteGround): nessun contenuto accessibile senza browser reale.
+- **Decisione**: non aggirabile in modo stabile/legale da server. Alternativa: feed RSS nazionale
+  `https://www.arci.it/feed/` (notizie, non eventi strutturati — escluso dall'indice eventi).
+- Se ArciBellezza espone in futuro un feed iCal/RSS pubblico o una REST API aperta, basta aggiungere
+  un `Connector` in `connectors.ts`.
+
+## 5. teatro.it e concerti-italia.it (NON ACCESSIBILI — documentato)
+- `https://www.teatro.it/spettacoli/milano/` (e feed/sitemap): **403** con pagina anti-bot (Cloudflare-like).
+- `https://www.concerti-italia.it/concerti/lombardia/milano/` (e feed/sitemap): **202** con challenge SG Captcha.
+- Nessuna rotta pubblica (HTML, RSS, sitemap, wp-json) è accessibile senza browser reale:
+  connettori **non implementati** (no scraping di pagine anti-bot, viola ToS e fragile).
+
+## 6. RSS notizie (RIMOSSI dall'indice)
 - I feed generali di MilanoToday / Il Giorno / Arci contengono **cronaca**, non eventi strutturati:
   rimossi dai connettori attivi. Restano validi solo per āeventiā citati dentro articoli, ma senza
   data/luogo affidabili: producono rumore (es. "Sorpresi a spacciare droga durante il festival musicale").
