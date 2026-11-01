@@ -10,18 +10,45 @@ function parseBbox(bbox: string): [number, number, number, number] | null {
   return [s, w, n, e];
 }
 
+const ISO_DATE = /^(\d{4})-(\d{2})-(\d{2})$/;
+
+function parseIsoDate(value: string, field: string): string {
+  const m = ISO_DATE.exec(value);
+  if (!m) {
+    throw Object.assign(new Error(`Invalid ${field} date, expected YYYY-MM-DD`), { statusCode: 400 });
+  }
+  const [, y, mo, d] = m.map(Number) as unknown as [string, number, number, number];
+  const dt = new Date(Date.UTC(y, mo - 1, d));
+  if (dt.getUTCFullYear() !== y || dt.getUTCMonth() !== mo - 1 || dt.getUTCDate() !== d) {
+    throw Object.assign(new Error(`Invalid ${field} date, expected YYYY-MM-DD`), { statusCode: 400 });
+  }
+  return value;
+}
+
+export function ftsQuery(q: string): string {
+  const tokens = q
+    .split(/\s+/)
+    .map((t) => t.replace(/[*"]/g, "").trim())
+    .filter(Boolean)
+    .slice(0, 8);
+  if (tokens.length === 0) return '""';
+  return tokens.map((t) => `"${t}"`).join(" AND ") + "*";
+}
+
 export function queryEvents(db: DatabaseSync, f: EventFilters): EventsResponse {
   const clauses: string[] = [];
   const params: (string | number)[] = [];
 
-  if (f.q) {
-    clauses.push("(title LIKE ? OR description LIKE ? OR city LIKE ? OR venue LIKE ? OR organizer LIKE ?)");
-    const like = `%${f.q}%`;
-    params.push(like, like, like, like, like);
+  const q = f.q?.trim();
+  if (q) {
+    clauses.push(
+      "events.rowid IN (SELECT rowid FROM events_fts WHERE events_fts MATCH ?)",
+    );
+    params.push(ftsQuery(q));
   }
   if (f.city) {
     clauses.push("upper(city) LIKE ?");
-    params.push(`%${f.city.toUpperCase()}%`);
+    params.push(`%${f.city.trim().toUpperCase()}%`);
   }
   if (f.category && f.category !== "saved") {
     if (!EVENT_CATEGORIES.includes(f.category)) {
@@ -35,11 +62,11 @@ export function queryEvents(db: DatabaseSync, f: EventFilters): EventsResponse {
   }
   if (f.from) {
     clauses.push("date(start) >= date(?)");
-    params.push(f.from);
+    params.push(parseIsoDate(f.from, "from"));
   }
   if (f.to) {
     clauses.push("date(start) <= date(?)");
-    params.push(f.to);
+    params.push(parseIsoDate(f.to, "to"));
   }
   if (f.bbox) {
     const b = parseBbox(f.bbox);
@@ -51,7 +78,7 @@ export function queryEvents(db: DatabaseSync, f: EventFilters): EventsResponse {
   const where = clauses.length > 0 ? `WHERE ${clauses.join(" AND ")}` : "";
   const total = (db.prepare(`SELECT COUNT(*) AS c FROM events ${where}`).get(...params) as { c: number }).c;
   const rows = db
-    .prepare(`SELECT * FROM events ${where} ORDER BY date(start) ASC, time_start ASC LIMIT 2000`)
+    .prepare(`SELECT events.* FROM events ${where} ORDER BY date(start) ASC, time_start ASC LIMIT 2000`)
     .all(...params) as unknown as EventRow[];
   return { total, events: rows.map(rowToEvent) };
 }

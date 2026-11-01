@@ -4,13 +4,15 @@ App per cercare, salvare e visualizzare su **lista e mappa** gli eventi a Milano
 
 ## Funzionalità
 
-- **Aggregazione da fonti pubbliche**: il server interroga il portale open data di Regione Lombardia
-  ([Sagre e fiere su area pubblica in provincia di Milano](https://www.dati.lombardia.it/Commercio/Sagre-e-fiere-su-area-pubblica-in-provincia-di-Mil/f2tm-32s5), licenza CC0)
-  tramite la sua API Socrata (SoQL), con paginazione automatica.
+- **Aggregazione multi-fonte da siti pubblici**:
+  - [Regione Lombardia — Sagre e fiere su area pubblica in provincia di Milano](https://www.dati.lombardia.it/Commercio/Sagre-e-fiere-su-area-pubblica-in-provincia-di-Mil/f2tm-32s5) (CC0) via API Socrata/SoQL, con paginazione;
+  - feed RSS/Atom pubblici di testate e associazioni (MilanoToday, Il Giorno, Arci) e pagine evento con dati strutturati **JSON-LD (schema.org Event)** di MilanoToday;
+  - filtro euristico: solo contenuti che sembrano eventi (parole chiave) e riferiti all'area milanese, con data estratta dal testo (formati italiani e ISO).
+- **Ricerca full-text** su titolo, descrizione, comune, luogo e organizzatore via **FTS5** di SQLite (case-insensitive e senza distinzione accenti, token unicode61), con query MATCH sanificate.
 - **Indicizzazione** in un database SQLite locale per **luogo (comune + indirizzo), data e tipologia**
   (categoria dedotta dal testo: sagra, fiera, concerto, teatro, mostra, sport, famiglia, altro).
 - **Geocoding** degli indirizzi via [Nominatim/OpenStreetMap](https://nominatim.openstreetmap.org/) (rispettando il rate limit di 1 req/s) per la vista mappa.
-- **Filtri**: testo libero, comune, tipologia, intervallo di date, bounding box della mappa, solo salvati.
+- **Filtri**: testo libero (FTS5), comune, tipologia, intervallo di date (validato: `YYYY-MM-DD` reali, altrimenti errore 400), bounding box della mappa, solo salvati. La ricerca vuota ripristina l'elenco completo.
 - **Salvataggio**: ogni evento può essere marcato come salvato (★) e filtrato con "Solo salvati"; lo stato persiste nel DB.
 - **Vista mappa** con Leaflet/OpenStreetMap: marker colorati per categoria, popup con dettagli, filtro per area visibile.
 - **Installabile** come PWA (manifest + icone), layout responsive mobile-first.
@@ -18,7 +20,7 @@ App per cercare, salvare e visualizzare su **lista e mappa** gli eventi a Milano
 ## Stack
 
 - **Server**: Node.js ≥ 22 (zero dipendenze runtime: `node:http` + `node:sqlite` + `fetch`), TypeScript.
-- **Web**: React 19 + Vite + react-leaflet, servita in produzione dallo stesso server (SPA fallback).
+- **Web**: React 19 + Vite + react-leaflet con mappa caricata in **lazy-loading** (chunk separato, ~46 kB gzip), servita in produzione dallo stesso server (SPA fallback). Bundle iniziale ~72 kB gzip.
 - **Dati**: [dati.lombardia.it](https://www.dati.lombardia.it) (CC0), geocoding Nominatim (ODbL), tiles © OpenStreetMap.
 
 ## Avvio
@@ -75,9 +77,14 @@ npm test               # test unitari e API (node:test, DB in-memory, fetch mock
 
 ```
 shared/   tipi TypeScript condivisi (MiEvent, filtri, formato riga Socrata)
-server/   API HTTP, DB SQLite, sync dalla fonte pubblica, geocoding, query con filtri
-web/      React + Vite + Leaflet (lista, mappa, filtri, salvataggio, PWA)
+server/   API HTTP, DB SQLite + FTS5, sync multi-fonte (Socrata + RSS + JSON-LD),
+          geocoding, query con filtri
+web/      React + Vite + Leaflet (lista, mappa lazy, filtri, salvataggio, PWA)
 ```
+
+## Perché non Rust/Go (per ora)
+
+Il server attuale è **zero dipendenze runtime** su Node 22 (`node:http` + `node:sqlite` + `fetch` nativo): un singolo processo, nessun `node_modules` di runtime, binario di fatto il runtime stesso. Un rewrite in Go/Rust darebbe un binario statico più piccolo (~10-15 MB vs ~90 MB di Node) e avvii più rapidi, ma a fronte di riscrivere HTTP, SQLite (via CGO), parsing RSS/XML e test — un costo alto ora che la base dati sta crescendo. La struttura a moduli (`sync.ts`, `feeds.ts`, `query.ts`, `geocode.ts`) è già pronta per un porting: se il piano free stanca (memoria/CPU), il candidato ideale è **Go con modernc.org/sqlite** (SQLite embedded senza CGO), che mantiene l'approccio zero-C.
 
 ## Licenza
 

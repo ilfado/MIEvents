@@ -9,6 +9,8 @@ export interface Filters {
   bbox?: string;
 }
 
+export const EMPTY_FILTERS: Filters = { q: "", city: "", category: "", from: "", to: "" };
+
 export async function fetchEvents(f: Filters): Promise<EventsResponse> {
   const params = new URLSearchParams();
   if (f.q) params.set("q", f.q);
