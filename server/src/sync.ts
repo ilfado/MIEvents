@@ -2,7 +2,7 @@ import type { DatabaseSync } from "node:sqlite";
 import { SAGRE_RESOURCE_URL, type MiEvent, type SagreRow, type SyncResult } from "@mievents/shared";
 import { geocodeAddress } from "./geocode.js";
 import { normalizeRow } from "./normalize.js";
-import { FEED_SOURCES, fetchFeed } from "./feeds.js";
+import { fetchMilanotodayEvents, connectorEventToMiEvent } from "./connectors.js";
 
 const UA = "MIEvents/0.1 (https://github.com/ilfado/MIEvents)";
 const PAGE = 500;
@@ -31,6 +31,8 @@ export async function syncEvents(
     maxGeocode?: number;
     geocodeSleepMs?: number;
     feeds?: boolean;
+    milanotoday?: boolean;
+    maxMilanotodayDetails?: number;
     fetchImpl?: typeof fetch;
   } = {},
 ): Promise<SyncResult> {
@@ -108,25 +110,32 @@ export async function syncEvents(
     if (rows.length < PAGE) break;
   }
 
-  if (opts.feeds !== false) {
-    for (const source of FEED_SOURCES) {
-      try {
-        const events = await fetchFeed(source, fetchImpl, UA);
-        feedEvents += events.length;
-        for (const e of events) {
-          const existing = db.prepare("SELECT id FROM events WHERE id = ?").get(e.id);
-          upsert.run(
-            e.id, e.title, e.description, e.category, e.type, e.start, e.end,
-            e.timeStart, e.timeEnd, e.venue, e.address, e.city, e.province, e.cap,
-            e.organizer, e.website, e.programUrl, e.source, e.sourceUrl,
-            e.lat, e.lon, e.fetchedAt, e.saved ? 1 : 0,
-          );
-          if (existing) updated++;
-          else inserted++;
+  if (opts.milanotoday !== false) {
+    try {
+      const events = await fetchMilanotodayEvents({ fetchImpl, maxDetails: opts.maxMilanotodayDetails ?? 40 });
+      feedEvents += events.length;
+      for (const ce of events) {
+        const e = connectorEventToMiEvent(ce, fetchedAt);
+        if (opts.geocode && e.address) {
+          const point = await geocodeAddress(e, { sleepMs: opts.geocodeSleepMs ?? 1100, fetchImpl });
+          if (point) {
+            e.lat = point.lat;
+            e.lon = point.lon;
+            geocoded++;
+          }
         }
-      } catch (err) {
-        errors.push(`feed ${source.id}: ${(err as Error).message}`);
+        const existing = db.prepare("SELECT id FROM events WHERE id = ?").get(e.id);
+        upsert.run(
+          e.id, e.title, e.description, e.category, e.type, e.start, e.end,
+          e.timeStart, e.timeEnd, e.venue, e.address, e.city, e.province, e.cap,
+          e.organizer, e.website, e.programUrl, e.source, e.sourceUrl,
+          e.lat, e.lon, e.fetchedAt, e.saved ? 1 : 0,
+        );
+        if (existing) updated++;
+        else inserted++;
       }
+    } catch (err) {
+      errors.push(`milanotoday-eventi: ${(err as Error).message}`);
     }
   }
 
