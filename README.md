@@ -2,17 +2,24 @@
 
 App per cercare, salvare e visualizzare su **lista e mappa** gli eventi a Milano e in provincia.
 
-## Funzionalità
+## Connettori eventi (formato normalizzato → tabella `events` + FTS5)
 
-- **Aggregazione multi-fonte da siti pubblici**:
-  - [Regione Lombardia — Sagre e fiere su area pubblica in provincia di Milano](https://www.dati.lombardia.it/Commercio/Sagre-e-fiere-su-area-pubblica-in-provincia-di-Mil/f2tm-32s5) (CC0) via API Socrata/SoQL, con paginazione;
-  - feed RSS/Atom pubblici di testate e associazioni (MilanoToday, Il Giorno, Arci) e pagine evento con dati strutturati **JSON-LD (schema.org Event)** di MilanoToday;
-  - filtro euristico: solo contenuti che sembrano eventi (parole chiave) e riferiti all'area milanese, con data estratta dal testo (formati italiani e ISO).
+Vedi `server/src/connectors.md` per il dettaglio campo-per-campo di ogni sito.
+
+| Fonte | Stato | Formato | Note |
+| --- | --- | --- | --- |
+| Regione Lombardia — sagre/fiere provincia MI | **attivo** | JSON Socrata/SoQL (CC0) | 140+ eventi/anno verificati live |
+| MilanoToday `/eventi/` | **attivo** | listing HTML `dal/{from}/al/{to}/` → dettaglio `/eventi/*.html` con **JSON-LD schema.org Event** | ~31 eventi/mese, venue+indirizzo da `location.address` |
+| Eventbrite | predisposto, **off** | API v3 `events/search` (richiede `EVENTBRITE_TOKEN`) | senza token la API è 404 e le pagine sono anti-bot (405): no scraping |
+| ArciBellezza `/eventi/` | **non raggiungibile** | — | protetto da challenge anti-bot SG Captcha (202) |
+| RSS notizie (MilanoToday/Il Giorno/Arci) | **rimossi** | — | contenevano cronaca, non eventi strutturati |
+
 - **Ricerca full-text** su titolo, descrizione, comune, luogo e organizzatore via **FTS5** di SQLite (case-insensitive e senza distinzione accenti, token unicode61), con query MATCH sanificate.
 - **Indicizzazione** in un database SQLite locale per **luogo (comune + indirizzo), data e tipologia**
   (categoria dedotta dal testo: sagra, fiera, concerto, teatro, mostra, sport, famiglia, altro).
 - **Geocoding** degli indirizzi via [Nominatim/OpenStreetMap](https://nominatim.openstreetmap.org/) (rispettando il rate limit di 1 req/s) per la vista mappa.
 - **Filtri**: testo libero (FTS5), comune, tipologia, intervallo di date (validato: `YYYY-MM-DD` reali, altrimenti errore 400), bounding box della mappa, solo salvati. La ricerca vuota ripristina l'elenco completo.
+- **Filtri rapidi**: chip **Oggi** e **Questo weekend** (ven–dom in arrivo) per la data, chip **Concerti / Mostre / Spettacoli** per la tipologia; filtri per luogo e date personalizzate nascosti dietro il menu **▼ Filtri**. Input date con font 16px: su mobile si apre il date picker nativo senza zoom automatico.
 - **Salvataggio**: ogni evento può essere marcato come salvato (★) e filtrato con "Solo salvati"; lo stato persiste nel DB.
 - **Vista mappa** con Leaflet/OpenStreetMap: marker colorati per categoria, popup con dettagli, filtro per area visibile.
 - **Installabile** come PWA (manifest + icone), layout responsive mobile-first.

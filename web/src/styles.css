@@ -31,12 +31,22 @@ body {
 .filters { display: flex; flex-direction: column; gap: 8px; margin: 10px 0 14px; }
 .filters-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .filters input[type="search"], .filters select, .filters input[type="date"] {
-  padding: 9px 10px; border: 1px solid var(--border); border-radius: 10px; font-size: 0.95rem; background: var(--card);
+  padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; font-size: 16px; background: var(--card);
+  min-height: 44px;
 }
-.filters input[type="search"] { flex: 1 1 240px; }
+.filters input[type="search"] { flex: 1 1 100%; width: 100%; }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.chip {
+  border: 1px solid var(--border); background: var(--card); color: var(--ink);
+  border-radius: 999px; padding: 8px 14px; min-height: 40px; font-size: 0.9rem; cursor: pointer;
+}
+.chip-active { background: var(--red); border-color: var(--red); color: #fff; }
+.chip-advanced { margin-left: auto; }
+.filters-advanced { display: flex; flex-direction: column; gap: 8px; padding: 10px; background: var(--card); border: 1px solid var(--border); border-radius: 12px; }
 .date-field { display: inline-flex; align-items: center; gap: 6px; font-size: 0.85rem; color: var(--muted); }
 .btn-reset { border: 1px solid var(--border); background: var(--card); border-radius: 10px; padding: 9px 12px; cursor: pointer; }
 .result-count { margin-left: auto; color: var(--muted); font-size: 0.85rem; }
+.chips .result-count { margin-left: auto; }
 
 .event-list { display: flex; flex-direction: column; gap: 10px; }
 
@@ -80,4 +90,6 @@ body {
   .map { height: 55vh; }
   .map-detail { position: static; width: 100%; margin-top: 10px; box-shadow: none; }
   .result-count { margin-left: 0; width: 100%; }
+  .chip-advanced { margin-left: 0; }
+  .filters select { flex: 1 1 45%; }
 }

@@ -2,13 +2,15 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { MiEvent } from "@mievents/shared";
 import { EMPTY_FILTERS, fetchCities, fetchEvents, toggleSaved, type Filters } from "./api.js";
 import { EventCard } from "./components/EventCard.js";
-import { FiltersBar } from "./components/FiltersBar.js";
+import { applyQuickDate, FiltersBar } from "./components/FiltersBar.js";
+import type { QuickDate } from "./dates.js";
 import { lazy, Suspense } from "react";
 
 const EventMap = lazy(() => import("./components/EventMap.js").then((m) => ({ default: m.EventMap })));
 
 export default function App() {
   const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
+  const [quickDate, setQuickDate] = useState<QuickDate>("");
   const [events, setEvents] = useState<MiEvent[]>([]);
   const [total, setTotal] = useState(0);
   const [cities, setCities] = useState<string[]>([]);
@@ -97,7 +99,17 @@ export default function App() {
         </nav>
       </header>
 
-      <FiltersBar filters={filters} cities={cities} onChange={setFilters} resultCount={total} />
+      <FiltersBar
+        filters={filters}
+        quickDate={quickDate}
+        cities={cities}
+        onChange={setFilters}
+        onQuickDate={(q) => {
+          setQuickDate(q);
+          setFilters((f) => applyQuickDate(f, q));
+        }}
+        resultCount={total}
+      />
 
       {error && <p className="error">{error}</p>}
       {loading && <p className="loading">Caricamento…</p>}
