@@ -3,6 +3,7 @@ import { SAGRE_RESOURCE_URL, type MiEvent, type SagreRow, type SyncResult } from
 import { geocodeAddress } from "./geocode.js";
 import { normalizeRow } from "./normalize.js";
 import { fetchMilanotodayEvents, connectorEventToMiEvent } from "./connectors.js";
+import { upsertVenue, geocodeVenue, attachVenueCoords } from "./venues.js";
 
 const UA = "MIEvents/0.1 (https://github.com/ilfado/MIEvents)";
 const PAGE = 500;
@@ -81,17 +82,33 @@ export async function syncEvents(
       if (e) events.push(e);
     }
     if (opts.geocode) {
+      const seenVenues = new Set<string>();
       let budget = opts.maxGeocode ?? events.length;
       for (const e of events) {
         if (budget <= 0) break;
-        const point = await geocodeAddress(e, {
-          sleepMs: opts.geocodeSleepMs ?? 1100,
-          fetchImpl,
-        });
-        if (point) {
-          e.lat = point.lat;
-          e.lon = point.lon;
-          geocoded++;
+        const venueKey = e.venue ?? e.address ?? "";
+        if (venueKey && seenVenues.has(venueKey)) {
+          const attached = attachVenueCoords(db, e);
+          e.lat = attached.lat;
+          e.lon = attached.lon;
+          continue;
+        }
+        if (venueKey) {
+          seenVenues.add(venueKey);
+          const v = upsertVenue(db, { name: e.venue ?? e.address ?? "", address: e.address, city: e.city }, fetchedAt);
+          const geo = await geocodeVenue(db, v, { sleepMs: opts.geocodeSleepMs ?? 1100, fetchImpl });
+          if (geo?.lat != null) {
+            e.lat = geo.lat;
+            e.lon = geo.lon;
+            geocoded++;
+          }
+        } else {
+          const point = await geocodeAddress(e, { sleepMs: opts.geocodeSleepMs ?? 1100, fetchImpl });
+          if (point) {
+            e.lat = point.lat;
+            e.lon = point.lon;
+            geocoded++;
+          }
         }
         budget--;
       }
@@ -116,12 +133,20 @@ export async function syncEvents(
       feedEvents += events.length;
       for (const ce of events) {
         const e = connectorEventToMiEvent(ce, fetchedAt);
-        if (opts.geocode && e.address) {
-          const point = await geocodeAddress(e, { sleepMs: opts.geocodeSleepMs ?? 1100, fetchImpl });
-          if (point) {
-            e.lat = point.lat;
-            e.lon = point.lon;
-            geocoded++;
+        if (opts.geocode && (e.venue || e.address)) {
+          const venueKey = e.venue ?? e.address ?? "";
+          const v = upsertVenue(db, { name: e.venue ?? e.address ?? "", address: e.address, city: e.city }, fetchedAt);
+          const cached = attachVenueCoords(db, e);
+          if (cached.lat != null) {
+            e.lat = cached.lat;
+            e.lon = cached.lon;
+          } else {
+            const geo = await geocodeVenue(db, v, { sleepMs: opts.geocodeSleepMs ?? 1100, fetchImpl });
+            if (geo?.lat != null) {
+              e.lat = geo.lat;
+              e.lon = geo.lon;
+              geocoded++;
+            }
           }
         }
         const existing = db.prepare("SELECT id FROM events WHERE id = ?").get(e.id);

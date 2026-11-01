@@ -68,6 +68,9 @@ export function queryEvents(db: DatabaseSync, f: EventFilters): EventsResponse {
     clauses.push("date(start) <= date(?)");
     params.push(parseIsoDate(f.to, "to"));
   }
+  if (!f.from && !f.to && !f.includePast) {
+    clauses.push("date(COALESCE(end, start)) >= date('now', 'localtime')");
+  }
   if (f.bbox) {
     const b = parseBbox(f.bbox);
     if (!b) throw Object.assign(new Error("Invalid bbox, expected south,west,north,east"), { statusCode: 400 });

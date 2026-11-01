@@ -101,7 +101,7 @@ test("syncEvents with milanotoday connector and no RSS news", async () => {
   const db = openDb(":memory:");
   const result = await syncEvents(db, { fetchImpl: mockFetch, geocode: false, feeds: false });
   assert.equal(result.errors.length, 0);
-  const all = queryEvents(db, {});
+  const all = queryEvents(db, { includePast: true });
   assert.equal(all.total, 2);
   const sources = all.events.map((e) => e.source).sort();
   assert.deepEqual(sources, ["MilanoToday Eventi", "dati.lombardia.it"]);

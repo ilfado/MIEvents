@@ -84,6 +84,16 @@ export function openDb(dbPath: string): DatabaseSync {
       INSERT INTO events_fts(rowid, title, description, city, venue, organizer)
       VALUES (new.rowid, new.title, new.description, new.city, new.venue, new.organizer);
     END;
+    CREATE TABLE IF NOT EXISTS venues (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      address TEXT,
+      city TEXT NOT NULL,
+      lat REAL,
+      lon REAL,
+      updated_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_venues_name ON venues(name);
     CREATE TABLE IF NOT EXISTS sync_state (
       key TEXT PRIMARY KEY,
       value TEXT NOT NULL

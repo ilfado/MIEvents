@@ -6,6 +6,7 @@ import type { DatabaseSync } from "node:sqlite";
 import { EVENT_CATEGORIES, type EventCategory, type EventFilters, type SyncResult } from "@mievents/shared";
 import { openDb } from "./db.js";
 import { queryEvents, listCities, setSaved, getEvent } from "./query.js";
+import { listVenues } from "./venues.js";
 import { syncEvents } from "./sync.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -59,6 +60,7 @@ function parseFilters(url: URL): EventFilters {
   const bbox = p.get("bbox");
   if (bbox) f.bbox = bbox;
   if (p.get("saved") === "1") f.savedOnly = true;
+  if (p.get("includePast") === "1") f.includePast = true;
   return f;
 }
 
@@ -118,6 +120,10 @@ export function createServer(dbOverride?: DatabaseSync): http.Server {
 
       if (route === "GET /api/events/categories") {
         return sendJson(res, 200, { categories: EVENT_CATEGORIES });
+      }
+
+      if (route === "GET /api/venues") {
+        return sendJson(res, 200, { venues: listVenues(db) });
       }
 
       if (url.pathname.startsWith("/api/events/") && req.method === "GET") {
