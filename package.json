@@ -1,0 +1,22 @@
+{
+  "name": "mievents",
+  "version": "0.1.0",
+  "private": true,
+  "description": "App to explore and save Milan events (list + map)",
+  "type": "module",
+  "workspaces": [
+    "shared",
+    "server",
+    "web"
+  ],
+  "scripts": {
+    "dev": "npm run dev --workspace=server & npm run dev --workspace=web",
+    "build": "npm run build --workspace=shared && npm run build --workspace=server && npm run build --workspace=web",
+    "test": "npm run test --workspace=server",
+    "start": "npm run start --workspace=server"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "license": "Unlicense"
+}
