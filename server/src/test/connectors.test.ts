@@ -99,7 +99,7 @@ test("syncEvents with milanotoday connector and no RSS news", async () => {
     return new Response("<html></html>", { status: 200 });
   }) as typeof fetch;
   const db = openDb(":memory:");
-  const result = await syncEvents(db, { fetchImpl: mockFetch, geocode: false, feeds: false });
+  const result = await syncEvents(db, { fetchImpl: mockFetch, geocode: false, feeds: false, cheventi: false, wikidata: false, wpVenues: false, newsRss: false, ticketing: false });
   assert.equal(result.errors.length, 0);
   const all = queryEvents(db, { includePast: true });
   assert.equal(all.total, 2);

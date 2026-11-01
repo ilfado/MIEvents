@@ -1,5 +1,29 @@
 # Connettori eventi — formato e stato
 
+## Connettori ATTIVI (senza chiave)
+
+| Fonte | Endpoint | Formato | Verifica live |
+| --- | --- | --- | --- |
+| Regione Lombardia sagre/fiere | `dati.lombardia.it/resource/f2tm-32s5.json` (SoQL) | JSON Socrata | 140 eventi |
+| MilanoToday Eventi | `milanotoday.it/eventi/dal/{from}/al/{to}/` → `/eventi/*.html` | JSON-LD `Event` | 7 futurs |
+| **Cheventi.it** | `cheventi.it/regioni/lombardia[/milano]/` (pagine `page/N/`) | **JSON-LD `ItemList` di `Event` nel listing**, con `location.geo` già incluso | 15 eventi, tutti in provincia MI (filtro bbox 44.9–46.1 / 8.4–10.6) |
+| **Wikidata via QLever** | `qlever.dev/api/wikidata?query=SPARQL` | SPARQL JSON (`P31/P279* Q1656682`, `P625`, `P131* Q490`, `P585` >= oggi) | eventi noti con coordinate |
+| **Santeria Milano** | `santeria.milano.it/wp-json/wp/v2/eventi` | WP REST JSON (data estratta dal testo) | eventi club |
+| **RSS testate** (ViviMilano spettacoli, MilanoEvents, Eventi@Milano concerti) | feed RSS pubblici | RSS → filtro keyword evento + area MI + data da testo/pubDate | normalizzati in `events` |
+
+## Connettori con API key gratuita (attivabili via env, MAI in chat/codice)
+
+| Servizio | Env var | Come obtenirla |
+| --- | --- | --- |
+| Ticketmaster Discovery | `TICKETMASTER_API_KEY` | developer.ticketmaster.com → New App → "Discovery API" key istantanea |
+| Eventbrite | `EVENTBRITE_TOKEN` | eventbrite.com → Account → App Keys → crea app → token personale |
+| Bandsintown | `BANDSINTWN_APP_ID` | bandsintown.com/developer → register app |
+
+Le chiavi si impostano come **Environment Variables** nel deploy (es. Render: Settings → Environment), non nel codice né in chat. Il server le legge con `apiKeysFromEnv()` e attiva i connettori solo se presenti.
+
+## NON accessibili (anti-bot) — esclusi
+teatro.it (403), concerti-italia.it (202 SG Captcha), arcibellezza.it (202 SG Captcha), eventbrite.com HTML (405), yesmilano.it (403), zero.eu (no feed), Teatro alla Scala/Piccolo/HangarBicocca (no API pubblica).
+
 Ogni connettore produce `ConnectorEvent` normalizzato, poi convertito in `MiEvent` e indicizzato
 nel DB (tabella `events`) con indice full-text FTS5. Filtri supportati: testo (FTS5), comune,
 categoria, intervallo date, bounding box, salvati.

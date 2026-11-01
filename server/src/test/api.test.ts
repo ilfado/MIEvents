@@ -41,7 +41,7 @@ function mockFetch(rows: unknown[]): typeof fetch {
 
 test("syncEvents fetches, normalizes and upserts", async () => {
   const db = openDb(":memory:");
-  const result = await syncEvents(db, { fetchImpl: mockFetch(sampleRows), geocode: false, feeds: false, milanotoday: false });
+  const result = await syncEvents(db, { fetchImpl: mockFetch(sampleRows), geocode: false, feeds: false, milanotoday: false, cheventi: false, wikidata: false, wpVenues: false, newsRss: false, ticketing: false });
   assert.equal(result.fetched, 3);
   assert.equal(result.inserted, 3);
   assert.equal(result.errors.length, 0);
@@ -49,7 +49,7 @@ test("syncEvents fetches, normalizes and upserts", async () => {
   assert.equal(rows.length, 3);
   assert.equal(rowToEvent(rows[2]).city, "MILANO");
   assert.equal(rowToEvent(rows[2]).category, "concerto");
-  const again = await syncEvents(db, { fetchImpl: mockFetch(sampleRows), geocode: false, feeds: false, milanotoday: false });
+  const again = await syncEvents(db, { fetchImpl: mockFetch(sampleRows), geocode: false, feeds: false, milanotoday: false, cheventi: false, wikidata: false, wpVenues: false, newsRss: false, ticketing: false });
   assert.equal(again.inserted, 0);
   assert.equal(again.updated, 3);
 });
@@ -57,14 +57,14 @@ test("syncEvents fetches, normalizes and upserts", async () => {
 test("syncEvents records errors and keeps partial data", async () => {
   const db = openDb(":memory:");
   const failing = (async () => new Response("boom", { status: 500 })) as typeof fetch;
-  const result = await syncEvents(db, { fetchImpl: failing, geocode: false, feeds: false, milanotoday: false });
+  const result = await syncEvents(db, { fetchImpl: failing, geocode: false, feeds: false, milanotoday: false, cheventi: false, wikidata: false, wpVenues: false, newsRss: false, ticketing: false });
   assert.equal(result.fetched, 0);
   assert.equal(result.errors.length, 1);
 });
 
 test("queryEvents filters by city, category, date range and bbox", async () => {
   const db = openDb(":memory:");
-  await syncEvents(db, { fetchImpl: mockFetch(sampleRows), geocode: false, feeds: false, milanotoday: false });
+  await syncEvents(db, { fetchImpl: mockFetch(sampleRows), geocode: false, feeds: false, milanotoday: false, cheventi: false, wikidata: false, wpVenues: false, newsRss: false, ticketing: false });
   const all = queryEvents(db, { includePast: true });
   assert.equal(all.total, 3);
   const milano = queryEvents(db, { city: "milano", includePast: true });
@@ -87,7 +87,7 @@ test("queryEvents filters by city, category, date range and bbox", async () => {
 
 test("saved flag toggles and savedOnly filter works", async () => {
   const db = openDb(":memory:");
-  await syncEvents(db, { fetchImpl: mockFetch(sampleRows), geocode: false, feeds: false, milanotoday: false });
+  await syncEvents(db, { fetchImpl: mockFetch(sampleRows), geocode: false, feeds: false, milanotoday: false, cheventi: false, wikidata: false, wpVenues: false, newsRss: false, ticketing: false });
   const ev = queryEvents(db, { city: "senago", includePast: true }).events[0];
   assert.equal(ev.saved, false);
   assert.ok(setSaved(db, ev.id, true));
@@ -100,7 +100,7 @@ test("saved flag toggles and savedOnly filter works", async () => {
 
 test("HTTP API serves events, saves and returns 404/400", async () => {
   const db = openDb(":memory:");
-  await syncEvents(db, { fetchImpl: mockFetch(sampleRows), geocode: false, feeds: false, milanotoday: false });
+  await syncEvents(db, { fetchImpl: mockFetch(sampleRows), geocode: false, feeds: false, milanotoday: false, cheventi: false, wikidata: false, wpVenues: false, newsRss: false, ticketing: false });
   const server = createServer(db);
   await new Promise<void>((resolve) => server.listen(0, resolve));
   const port = (server.address() as AddressInfo).port;

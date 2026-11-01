@@ -4,6 +4,15 @@ import { geocodeAddress } from "./geocode.js";
 import { normalizeRow } from "./normalize.js";
 import { fetchMilanotodayEvents, connectorEventToMiEvent } from "./connectors.js";
 import { upsertVenue, geocodeVenue, attachVenueCoords } from "./venues.js";
+import {
+  fetchCheventiEvents,
+  fetchWikidataEvents,
+  fetchWpVenueEvents,
+  fetchNewsRssEvents,
+  toMiEvent,
+  type ConnectorEvent,
+} from "./connectors2.js";
+import { apiKeysFromEnv, fetchTicketmasterEvents, fetchEventbriteEvents, fetchBandsintownEvents } from "./connectors3.js";
 
 const UA = "MIEvents/0.1 (https://github.com/ilfado/MIEvents)";
 const PAGE = 500;
@@ -33,7 +42,13 @@ export async function syncEvents(
     geocodeSleepMs?: number;
     feeds?: boolean;
     milanotoday?: boolean;
+    cheventi?: boolean;
+    wikidata?: boolean;
+    wpVenues?: boolean;
+    newsRss?: boolean;
+    ticketing?: boolean;
     maxMilanotodayDetails?: number;
+    maxCheventiPages?: number;
     fetchImpl?: typeof fetch;
   } = {},
 ): Promise<SyncResult> {
@@ -127,40 +142,130 @@ export async function syncEvents(
     if (rows.length < PAGE) break;
   }
 
-  if (opts.milanotoday !== false) {
-    try {
-      const events = await fetchMilanotodayEvents({ fetchImpl, maxDetails: opts.maxMilanotodayDetails ?? 40 });
-      feedEvents += events.length;
-      for (const ce of events) {
-        const e = connectorEventToMiEvent(ce, fetchedAt);
-        if (opts.geocode && (e.venue || e.address)) {
-          const venueKey = e.venue ?? e.address ?? "";
-          const v = upsertVenue(db, { name: e.venue ?? e.address ?? "", address: e.address, city: e.city }, fetchedAt);
-          const cached = attachVenueCoords(db, e);
-          if (cached.lat != null) {
-            e.lat = cached.lat;
-            e.lon = cached.lon;
-          } else {
-            const geo = await geocodeVenue(db, v, { sleepMs: opts.geocodeSleepMs ?? 1100, fetchImpl });
-            if (geo?.lat != null) {
-              e.lat = geo.lat;
-              e.lon = geo.lon;
-              geocoded++;
-            }
+  const insertConnectorEvents = async (ces: ConnectorEvent[], geocode: boolean) => {
+    for (const ce of ces) {
+      const e = toMiEvent(ce, fetchedAt);
+      if (geocode && (e.venue || e.address)) {
+        const v = upsertVenue(db, { name: e.venue ?? e.address ?? "", address: e.address, city: e.city }, fetchedAt);
+        const cached = attachVenueCoords(db, e);
+        if (cached.lat != null) {
+          e.lat = cached.lat;
+          e.lon = cached.lon;
+        } else if (e.lat == null) {
+          const geo = await geocodeVenue(db, v, { sleepMs: opts.geocodeSleepMs ?? 1100, fetchImpl });
+          if (geo?.lat != null) {
+            e.lat = geo.lat;
+            e.lon = geo.lon;
+            geocoded++;
           }
         }
-        const existing = db.prepare("SELECT id FROM events WHERE id = ?").get(e.id);
-        upsert.run(
-          e.id, e.title, e.description, e.category, e.type, e.start, e.end,
-          e.timeStart, e.timeEnd, e.venue, e.address, e.city, e.province, e.cap,
-          e.organizer, e.website, e.programUrl, e.source, e.sourceUrl,
-          e.lat, e.lon, e.fetchedAt, e.saved ? 1 : 0,
-        );
-        if (existing) updated++;
-        else inserted++;
       }
+      const existing = db.prepare("SELECT id FROM events WHERE id = ?").get(e.id);
+      upsert.run(
+        e.id, e.title, e.description, e.category, e.type, e.start, e.end,
+        e.timeStart, e.timeEnd, e.venue, e.address, e.city, e.province, e.cap,
+        e.organizer, e.website, e.programUrl, e.source, e.sourceUrl,
+        e.lat, e.lon, e.fetchedAt, e.saved ? 1 : 0,
+      );
+      if (existing) updated++;
+      else inserted++;
+    }
+    feedEvents += ces.length;
+  };
+
+  const connectorJobs: Array<() => Promise<ConnectorEvent[]>> = [];
+  if (opts.milanotoday !== false) {
+    connectorJobs.push(async () =>
+      (await fetchMilanotodayEvents({ fetchImpl, maxDetails: opts.maxMilanotodayDetails ?? 40 })).map((ce) => ({
+        ...ce,
+        timeStart: null,
+        timeEnd: null,
+        lat: null,
+        lon: null,
+      })),
+    );
+  }
+  if (opts.cheventi !== false) {
+    connectorJobs.push(() => fetchCheventiEvents({ fetchImpl, maxPages: opts.maxCheventiPages ?? 2 }));
+  }
+  if (opts.wikidata !== false) {
+    connectorJobs.push(() => fetchWikidataEvents({ fetchImpl }));
+  }
+  if (opts.wpVenues !== false) {
+    connectorJobs.push(() =>
+      fetchWpVenueEvents({
+        fetchImpl,
+        baseUrl: "https://www.santeria.milano.it",
+        sourceName: "Santeria Milano",
+        restPath: "eventi",
+        maxItems: 50,
+      }),
+    );
+  }
+  if (opts.newsRss !== false) {
+    connectorJobs.push(() =>
+      fetchNewsRssEvents({
+        fetchImpl,
+        feedUrl: "https://vivimilano.corriere.it/concerti-e-spettacoli/feed/",
+        sourceId: "vivimilano-spettacoli",
+        sourceName: "ViviMilano Spettacoli",
+        maxItems: 20,
+        fetchDetail: false,
+      }),
+    );
+    connectorJobs.push(() =>
+      fetchNewsRssEvents({
+        fetchImpl,
+        feedUrl: "https://milanoevents.it/category/eventi-milano/feed/",
+        sourceId: "milanoevents",
+        sourceName: "MilanoEvents.it",
+        maxItems: 20,
+        fetchDetail: false,
+      }),
+    );
+    connectorJobs.push(() =>
+      fetchNewsRssEvents({
+        fetchImpl,
+        feedUrl: "https://www.eventiatmilano.it/tag/concerti/feed/",
+        sourceId: "eventiatmilano-concerti",
+        sourceName: "Eventi@Milano",
+        maxItems: 20,
+        fetchDetail: false,
+      }),
+    );
+  }
+
+  for (const job of connectorJobs) {
+    try {
+      const ces = await job();
+      await insertConnectorEvents(ces, opts.geocode ?? false);
     } catch (err) {
-      errors.push(`milanotoday-eventi: ${(err as Error).message}`);
+      errors.push(`connector: ${(err as Error).message}`);
+    }
+  }
+
+  const keys = apiKeysFromEnv();
+  if (opts.ticketing !== false) {
+    if (keys.ticketmaster) {
+      try {
+        await insertConnectorEvents(await fetchTicketmasterEvents(keys.ticketmaster, { fetchImpl }), false);
+      } catch (err) {
+        errors.push(`ticketmaster: ${(err as Error).message}`);
+      }
+    }
+    if (keys.eventbrite) {
+      try {
+        await insertConnectorEvents(await fetchEventbriteEvents(keys.eventbrite, { fetchImpl }), false);
+      } catch (err) {
+        errors.push(`eventbrite: ${(err as Error).message}`);
+      }
+    }
+    if (keys.bandsintown) {
+      try {
+        await insertConnectorEvents(await fetchBandsintownEvents(keys.bandsintown, { fetchImpl }), false);
+      } catch (err) {
+        errors.push(`bandsintown: ${(err as Error).message}`);
+      }
     }
   }
 
