@@ -84,6 +84,11 @@ npm test               # test unitari e API (node:test, DB in-memory, fetch mock
 | `SYNC_GEOCODE` | `1` | Geocoding durante la sync (`0` per disabilitare) |
 | `SYNC_MAX_GEOCODE` | `200` | Massimo indirizzi geocodificati per sync |
 | `SYNC_INTERVAL_MS` | `21600000` | Intervallo sync periodica (6h) |
+| `TICKETMASTER_API_KEY` | — | API key gratuita Ticketmaster Discovery (opzionale) |
+| `EVENTBRITE_TOKEN` | — | Token personale Eventbrite (opzionale) |
+| `BANDSINTWN_APP_ID` | — | App ID Bandsintown (opzionale) |
+
+Le API key si impostano **solo come variabili d'ambiente nel deploy** (mai in chat o nel codice): su Render → Settings → Environment → Add Environment Variable. Senza chiavi i connettori restano spenti e gli altri continuano a funzionare.
 
 ## Struttura
 
