@@ -233,8 +233,8 @@ test("milanotoday source walks listing -> detail JSON-LD", async () => {
 test("ticketing sources only with keys; bandsintown artist-based mapping", async () => {
   assert.equal(ticketingSources({}).length, 0);
   assert.equal(ticketingSources({ TICKETMASTER_API_KEY: "K" }).length, 1);
-  assert.equal(ticketingSources({ EVENTBRITE_TOKEN: "T" }).length, 0);
-  assert.equal(ticketingSources({ EVENTBRITE_TOKEN: "T", EVENTBRITE_SEARCH: "1" }).length, 1);
+  assert.equal(ticketingSources({ EVENTBRITE_USER_TOKEN: "T" }).length, 0);
+  assert.equal(ticketingSources({ EVENTBRITE_USER_TOKEN: "T", EVENTBRITE_SEARCH: "1" }).length, 1);
   const bit = ticketingSources({ BANDSINTWN_APP_ID: "A" });
   assert.equal(bit.length, 1);
   assert.equal(bit[0].id, "bandsintown");
@@ -258,9 +258,9 @@ test("ticketing sources only with keys; bandsintown artist-based mapping", async
 });
 
 test("env helpers", () => {
-  const k = apiKeysFromEnv({ TICKETMASTER_API_KEY: " abc ", EVENTBRITE_TOKEN: "" });
+  const k = apiKeysFromEnv({ TICKETMASTER_API_KEY: " abc ", EVENTBRITE_USER_TOKEN: "" });
   assert.equal(k.ticketmaster, "abc");
-  assert.equal(k.eventbrite, undefined);
+  assert.equal(k.eventbriteUser, undefined);
   assert.deepEqual(bitArtistsFromEnv({ BANDSINTWN_ARTISTS: " Coez , Mahmood ,, " }), ["Coez", "Mahmood"]);
   assert.ok(DEFAULT_BIT_ARTISTS.length >= 40);
 });

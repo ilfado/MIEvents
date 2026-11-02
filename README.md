@@ -12,7 +12,7 @@ Vedi `server/src/connectors.md` per il dettaglio campo-per-campo di ogni sito.
 | --- | --- | --- | --- |
 | Regione Lombardia — sagre/fiere provincia MI | **attivo** | JSON Socrata/SoQL (CC0) | 140+ eventi/anno verificati live |
 | MilanoToday `/eventi/` | **attivo** | listing HTML `dal/{from}/al/{to}/` → dettaglio `/eventi/*.html` con **JSON-LD schema.org Event** | ~31 eventi/mese, venue+indirizzo da `location.address` |
-| Eventbrite | predisposto, **off** | API v3 `events/search` (richiede `EVENTBRITE_TOKEN`) | senza token la API è 404 e le pagine sono anti-bot (405): no scraping |
+| Eventbrite | predisposto, **off** | API v3 `events/search` (richiede user token in `EVENTBRITE_USER_TOKEN`) | senza token la API è 404 e le pagine sono anti-bot (405): no scraping |
 | ArciBellezza `/eventi/` | **non raggiungibile** | — | protetto da challenge anti-bot SG Captcha (202) |
 | teatro.it, concerti-italia.it | **non accessibili** | — | 403 (teatro.it) / 202 SG Captcha (concerti-italia.it) su HTML, RSS e sitemap |
 | RSS notizie (MilanoToday/Il Giorno/Arci) | **rimossi** | — | contenevano cronaca, non eventi strutturati |
@@ -92,7 +92,7 @@ npm test               # test unitari e API (node:test, DB in-memory, fetch mock
 | `SYNC_MAX_GEOCODE` | `15` | Massimo indirizzi geocodificati per sync (Nominatim 1 req/s → 15/sync = ~0 costo) |
 | `SYNC_INTERVAL_MS` | `43200000` | Intervallo sync periodica (12h — per stare nei limiti gratuiti) |
 | `TICKETMASTER_API_KEY` | — | API key gratuita Ticketmaster Discovery (opzionale) |
-| `EVENTBRITE_TOKEN` | — | Token Eventbrite: serve **user OAuth token** (flusso code+consenso, scope public), non basta il private token |
+| `EVENTBRITE_USER_TOKEN` | — | **User OAuth token** Eventbrite (flusso authorization-code + consenso, scope `public`) — diverso dalla api/private key |
 | `EVENTBRITE_SEARCH` | `0` | `1` solo se hai user token valido: abilita il connettore search (di default spento) |
 | `BANDSINTWN_APP_ID` | — | API key Bandsintown (da artist.bandsintown.com → Settings → Get API Key). L'API è **artist-only**: il connettore interroga `/artists/{nome}/events` |
 | `BANDSINTWN_ARTISTS` | lista default di ~50 artisti italiani | Elenco artisti separati da virgola per Bandsintown (max 25/sync); gli eventi vengono filtrati per provincia di Milano via coordinate |
