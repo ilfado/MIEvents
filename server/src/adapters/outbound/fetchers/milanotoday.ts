@@ -1,7 +1,7 @@
 import type { EventSource } from "../../../application/ports.js";
 import type { SourceResult } from "../../../core/types.js";
 import { extractJsonLdEvents, ldToDraft } from "../../../core/jsonld.js";
-import { extractLinks, todayIso } from "../../../core/text.js";
+import { extractLinks } from "../../../core/text.js";
 import { getText, sleep } from "./http.js";
 
 const EVENT_PATH = /\/eventi\/[a-z0-9][a-z0-9-]*\.html$/i;
@@ -52,4 +52,3 @@ export const milanotodaySource: EventSource = {
   },
 };
 
-export const unusedTodayIso = todayIso;

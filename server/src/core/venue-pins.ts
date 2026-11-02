@@ -84,6 +84,11 @@ export function pinForVenue(venue: string | null, address: string | null = null)
     for (const [key, pin] of PIN_INDEX) {
       if (a.includes(key)) return pin;
     }
+    for (const [, pin] of PIN_INDEX) {
+      const pinAddr = norm(pin.address);
+      const aTokens = a.split(" ").filter((t) => t.length >= 4);
+      if (aTokens.length >= 2 && aTokens.every((t) => pinAddr.includes(t))) return pin;
+    }
   }
   return null;
 }
