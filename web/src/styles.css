@@ -133,19 +133,24 @@ body {
 .map-canvas {
   display: block; height: min(70vh, 640px); width: 100%;
   border: var(--border); box-shadow: var(--shadow); background: var(--bg);
-  image-rendering: pixelated; cursor: grab; touch-action: none;
 }
-.map-canvas:active { cursor: grabbing; }
-.map-popup {
-  position: absolute; z-index: 1000; width: 250px; max-height: 260px; overflow: auto;
-  background: var(--paper); border: var(--border); box-shadow: var(--shadow); padding: 8px 10px;
-  font-size: 0.78rem;
+.mi-marker {
+  width: 16px; height: 16px; border: 2px solid #111; box-shadow: 2px 2px 0 #111;
+  cursor: pointer; image-rendering: pixelated;
 }
-.map-popup-btn {
-  font: inherit; font-size: 0.75rem; background: none; border: 0; padding: 2px 0; cursor: pointer;
-  text-decoration: underline; text-align: left; display: block; width: 100%;
+.maplibregl-popup-content {
+  font-family: "Courier New", ui-monospace, monospace; font-size: 0.78rem;
+  border: 2px solid #111; border-radius: 0; box-shadow: 4px 4px 0 #111; padding: 8px 10px;
 }
-.map-popup-btn:hover { color: var(--red); }
+.maplibregl-popup-tip { border: 2px solid #111; box-shadow: none; }
+.maplibregl-ctrl-attrib { font-family: "Courier New", monospace; font-size: 0.65rem; }
+.maplibregl-ctrl-group button {
+  border: 2px solid #111; border-radius: 0; width: 32px; height: 32px;
+  font-family: "Courier New", monospace; font-weight: bold; box-shadow: 2px 2px 0 #111;
+}
+.maplibregl-ctrl-group { border: none; box-shadow: none; }
+/* strade in grayscale pixel per look coerente */
+.maplibregl-map .maplibregl-canvas { filter: grayscale(1) contrast(1.05); image-rendering: pixelated; }
 .map-fallback { display: flex; align-items: center; justify-content: center; color: var(--gray); background: var(--paper); text-transform: uppercase; letter-spacing: 1px; }
 .map-detail { position: absolute; right: 10px; top: 10px; width: min(340px, 90vw); z-index: 1000; }
 .map-detail .card { box-shadow: var(--shadow); }
