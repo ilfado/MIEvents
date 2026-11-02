@@ -1,4 +1,5 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ErrorBoundary } from "./components/ErrorBoundary.js";
 import type { MiEvent } from "@mievents/shared";
 import { EMPTY_FILTERS, fetchCities, fetchEvents, toggleSaved, type Filters } from "./api.js";
 import { EventCard } from "./components/EventCard.js";
@@ -154,6 +155,7 @@ export default function App() {
       ) : (
         <main className="map-wrap">
           <Suspense fallback={<div className="map-canvas map-fallback">CARICAMENTO MAPPA…</div>}>
+            <ErrorBoundary fallback={<div className="map-canvas map-fallback">MAPPA NON DISPONIBILE — USA LA LISTA</div>}>
             <EventMap
               events={events}
               selectedId={selectedId}
@@ -164,6 +166,7 @@ export default function App() {
               showStreets={showStreets}
               onToggleStreets={() => setShowStreets((v) => !v)}
             />
+            </ErrorBoundary>
           </Suspense>
           {selected && (
             <div className="map-detail">
