@@ -8,7 +8,9 @@ Ogni connettore è un `EventSource` in `server/src/adapters/outbound/fetchers/` 
 | Fonte | Endpoint | Formato | Verifica live |
 | --- | --- | --- | --- |
 | Regione Lombardia sagre/fiere | `dati.lombardia.it/resource/f2tm-32s5.json` (SoQL) | JSON Socrata | 140 eventi |
+| **Regione Lombardia sagre/fiere area pubblica (tutta la prov.)** | `dati.lombardia.it/resource/hs8z-dcey.json` (SoQL, CC0, agg. settimanale) | JSON Socrata con `location` GeoJSON Point → lat/lon diretti | 14 eventi futurs in prov. MI, 14/14 con geo (live) |
 | MilanoToday Eventi | `milanotoday.it/eventi/dal/{from}/al/{to}/` → `/eventi/*.html` | JSON-LD `Event` | 7 futurs |
+| **The Events Calendar (TEC) — BASE Milano, Magazzini Generali, Eventi@Milano** | `{base}/wp-json/tribe/events/v1/events?per_page=100&start_date={from}&end_date={to}&page=N` | WP REST JSON: `title,start_date,end_date,venue{venue,address,city,zip,province},url,categories` | 26 eventi (BASE 11 + Magazzini 7 + Eventi@Milano 8, live) |
 | **Cheventi.it** | `cheventi.it/regioni/lombardia[/milano]/` (pagine `page/N/`) | **JSON-LD `ItemList` di `Event` nel listing**, con `location.geo` già incluso | 15 eventi, tutti in provincia MI (filtro bbox 44.9–46.1 / 8.4–10.6) |
 | **Wikidata via QLever** | `qlever.dev/api/wikidata?query=SPARQL` | SPARQL JSON (`P31/P279* Q1656682`, `P625`, `P131* Q490`, `P585` >= oggi) | eventi noti con coordinate |
 | **Santeria Milano** | `santeria.milano.it/wp-json/wp/v2/eventi` | WP REST JSON (data estratta dal testo) | eventi club |
@@ -44,6 +46,21 @@ categoria, intervallo date, bounding box, salvati.
   `comune`/`prov`/`indirizzo`/`toponimo`/`cap`→luogo, `tipo`→type, `nome_org`→organizer,
   `sito_web`/`url_programma`→link
 - **Stato**: stabile, verificato live (140+ eventi/anno in provincia MI)
+
+## 1b. Regione Lombardia — sagre/fiere su area pubblica, geo incluso (ATTIVO)
+- **Endpoint**: `https://www.dati.lombardia.it/resource/hs8z-dcey.json` (Socrata/SoQL, CC0, agg. settimanale)
+- **Formato**: JSON; filtro `WHERE upper(prov)='MI' AND data_in >= '{from}' AND denom IS NOT NULL`, paginato LIMIT/OFFSET 500
+- **Geo**: campo `location` GeoJSON `{"type":"Point","coordinates":[lon,lat]}` (fallback `geo_x`/`geo_y`) → lat/lon senza Nominatim; guard client-side `prov='MI'` + bbox provincia
+- **Campi mappati**: come 1. (`denom, descriz, data_in/data_fine, ora_in/ora_fine, toponimo, indirizzo, civico, cap, comune, prov, url_programma, nome_org`)
+- **Stato**: verificato live — 14 sagre/fiere futurs in prov. MI, 14/14 georeferenziate (Inveruno, Paderno Dugnano, Gorgonzola…)
+
+## 1c. The Events Calendar (TEC) — venue WP (ATTIVO)
+- **Endpoint** (per sito): `{base}/wp-json/tribe/events/v1/events?per_page=100&start_date={from}&end_date={to}&page=N`
+- **Siti attivi**: `base.milano.it` (BASE Milano), `www.magazzinigenerali.org`, `www.eventiatmilano.it` (aggregatore editoriale)
+- **Formato**: WP REST JSON; campi `title, description, start_date/end_date ("YYYY-MM-DD HH:mm:ss", Europe/Rome), all_day, url, website, venue{venue,address,city,province,zip}, organizer, categories`
+- **Mappatura**: `start_date`→start + timeStart (null se all_day), `venue.venue`→venue, `venue.address/zip/city/province`→address, city default MILANO; filtro finestra `fromDate..toDate`, dedup per `url`, max pagine via `limits["<sourceId>Pages"]` (default 3)
+- **Nota**: l'export `.ics` (`/events.ics`) non è esposto via REST su questi siti (404): si usa solo il JSON
+- **Stato**: verificato live — 26 eventi (BASE 11, Magazzini 7, Eventi@Milano 8), 0 errori; geo via tabella `venues` (venue name → coords riutilizzate)
 
 ## 2. MilanoToday Eventi (ATTIVO)
 - **Endpoint listing**: `https://www.milanotoday.it/eventi/dal/{from}/al/{to}/` (pagine `?page=N`)

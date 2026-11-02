@@ -1,6 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { cheventiSource } from "../adapters/outbound/fetchers/cheventi.js";
+import { tribeBaseSource } from "../adapters/outbound/fetchers/tribe.js";
+import { lombardiaAreaPubblicaSource } from "../adapters/outbound/fetchers/lombardia-area-pubblica.js";
 import { wikidataSource } from "../adapters/outbound/fetchers/wikidata.js";
 import { newsRssSources } from "../adapters/outbound/fetchers/news-rss.js";
 import { ticketingSources, apiKeysFromEnv, bitArtistsFromEnv, DEFAULT_BIT_ARTISTS } from "../adapters/outbound/fetchers/ticketing.js";
@@ -49,6 +51,139 @@ test("cheventi source: keeps only future in-province events", async () => {
   assert.equal(res.events[0].venue, "Slaughter Club");
   assert.equal(res.events[0].lat, 45.575565);
   assert.equal(res.events[0].start, "2026-11-07");
+});
+
+const TRIBE_RESPONSE = {
+  events: [
+    {
+      id: 1,
+      url: "https://base.milano.it/event/bistrobrunch/2026-11-01/",
+      title: "bistroBRUNCH",
+      description: "<p>Brunch</p>",
+      start_date: "2026-11-01 12:00:00",
+      end_date: "2026-11-02 14:30:00",
+      all_day: false,
+      venue: { venue: "bistroBASE", address: "V. Ambrogio Bergognone da Fossano, 40", city: "Milano", province: "MI", zip: "20144" },
+      organizer: [],
+    },
+    {
+      id: 2,
+      url: "https://base.milano.it/eventi/show-2026/",
+      title: "Show vecchio",
+      description: "",
+      start_date: "2025-01-01 20:00:00",
+      end_date: "2025-01-01 23:00:00",
+      all_day: false,
+      venue: false,
+    },
+    {
+      id: 3,
+      url: "https://base.milano.it/eventi/notte-2026/",
+      title: "La notte ha la forma del grido di un lupo",
+      description: "<p>Performance</p>",
+      start_date: "2026-11-06 20:00:00",
+      end_date: "2026-11-06 23:00:00",
+      all_day: false,
+      venue: { venue: "ROOM 2100" },
+      organizer: [{ organizer: "BASE" }],
+    },
+  ],
+  total: 3,
+  total_pages: 1,
+};
+
+test("tribe source maps TEC events and filters window", async () => {
+  const mockFetch = (async (input: RequestInfo | URL) => {
+    const u = String(input);
+    assert.ok(u.includes("/wp-json/tribe/events/v1/events"));
+    assert.ok(u.includes("start_date=2026-01-01"));
+    assert.ok(u.includes("end_date=2026-12-31"));
+    return new Response(JSON.stringify(TRIBE_RESPONSE), { status: 200 });
+  }) as typeof fetch;
+  const res = await tribeBaseSource.run(makeCtx({ fetchImpl: mockFetch }));
+  assert.equal(res.events.length, 2);
+  const brunch = res.events.find((e) => e.title === "bistroBRUNCH")!;
+  assert.equal(brunch.start, "2026-11-01");
+  assert.equal(brunch.end, "2026-11-02");
+  assert.equal(brunch.timeStart, "12:00");
+  assert.equal(brunch.timeEnd, "14:30");
+  assert.equal(brunch.venue, "bistroBASE");
+  assert.equal(brunch.address, "V. Ambrogio Bergognone da Fossano, 40, 20144, Milano, MI");
+  assert.equal(brunch.city, "MILANO");
+  assert.equal(brunch.sourceId, "tribe-base");
+  const show = res.events.find((e) => e.title === "La notte ha la forma del grido di un lupo")!;
+  assert.equal(show.venue, "ROOM 2100");
+  assert.equal(show.organizer, "BASE");
+});
+
+test("lombardia area pubblica: sagre con geo dal campo location", async () => {
+  const rows = [
+    {
+      denom: "INVERART - PADIGLIONE D'ARTEGIOVANE INVERUNO",
+      comune: "INVERUNO",
+      prov: "MI",
+      tipo: "Sagra",
+      descriz: "Arte giovane",
+      data_in: "2026-11-20T00:00:00.000",
+      data_fine: "2026-11-22T00:00:00.000",
+      toponimo: "VIA",
+      indirizzo: "VIA MANZONI",
+      geo_x: "8.85453709",
+      geo_y: "45.51800375",
+      location: { type: "Point", coordinates: [8.85453709, 45.51800375] },
+      url_programma: { url: "https://www.procedimenti.servizirl.it/sagre/public/programma/26065" },
+      nome_org: "COMUNE DI INVERUNO",
+    },
+    {
+      denom: "Sagra senza geo",
+      comune: "MILANO",
+      prov: "MI",
+      data_in: "2026-11-25T00:00:00.000",
+      data_fine: null,
+      toponimo: null,
+      indirizzo: "PIAZZA DUOMO",
+      geo_x: null,
+      geo_y: null,
+      location: null,
+      url_programma: null,
+      nome_org: null,
+    },
+    {
+      denom: "Fuori provincia",
+      comune: "ROMA",
+      prov: "RM",
+      data_in: "2026-11-25T00:00:00.000",
+      geo_x: "12.5",
+      geo_y: "41.9",
+      location: { type: "Point", coordinates: [12.5, 41.9] },
+    },
+    {
+      denom: "Senza data",
+      comune: "MILANO",
+      prov: "MI",
+      data_in: null,
+    },
+  ];
+  const mockFetch = (async (input: RequestInfo | URL) => {
+    const u = String(input);
+    assert.ok(u.includes("hs8z-dcey.json"));
+    assert.ok(decodeURIComponent(u).includes("upper(prov) = 'MI'"));
+    return new Response(JSON.stringify(rows), { status: 200 });
+  }) as typeof fetch;
+  const res = await lombardiaAreaPubblicaSource.run(makeCtx({ fetchImpl: mockFetch }));
+  assert.equal(res.events.length, 2);
+  const inverart = res.events.find((e) => e.title.startsWith("INVERART"))!;
+  assert.equal(inverart.start, "2026-11-20");
+  assert.equal(inverart.end, "2026-11-22");
+  assert.equal(inverart.lat, 45.51800375);
+  assert.equal(inverart.lon, 8.85453709);
+  assert.equal(inverart.city, "INVERUNO");
+  assert.equal(inverart.url, "https://www.procedimenti.servizirl.it/sagre/public/programma/26065");
+  assert.equal(inverart.organizer, "COMUNE DI INVERUNO");
+  const noGeo = res.events.find((e) => e.title === "Sagra senza geo")!;
+  assert.equal(noGeo.lat, null);
+  assert.equal(noGeo.lon, null);
+  assert.equal(noGeo.address, "PIAZZA DUOMO, MILANO, MI");
 });
 
 test("wikidata source parses QLever bindings", async () => {
