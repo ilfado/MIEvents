@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import type { EventSource } from "../ports.js";
 import type { EventDraft, SourceResult, SyncOptions, SyncSummary } from "../../core/types.js";
 import { categorize } from "../../core/categorize.js";
+import { pinForVenue } from "../../core/venue-pins.js";
 import { syncWindow } from "../../core/types.js";
 import { lombardiaSagreSource } from "../../adapters/outbound/fetchers/lombardia.js";
 import { lombardiaAreaPubblicaSource } from "../../adapters/outbound/fetchers/lombardia-area-pubblica.js";
@@ -79,6 +80,13 @@ export async function runSync(deps: SyncDeps, opts: SyncOptions = {}): Promise<S
     for (const d of drafts) {
       let lat = d.lat;
       let lon = d.lon;
+      if (lat == null && (d.venue || d.address)) {
+        const pin = pinForVenue(d.venue, d.address);
+        if (pin) {
+          lat = pin.lat;
+          lon = pin.lon;
+        }
+      }
       if (d.venue || d.address) {
         const venueName = d.venue ?? d.address ?? "";
         const v = deps.venues.upsertVenue({ name: venueName, address: d.address, city: d.city }, fetchedAt);
