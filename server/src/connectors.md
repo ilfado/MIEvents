@@ -60,6 +60,7 @@ categoria, intervallo date, bounding box, salvati.
 - **Formato**: WP REST JSON; campi `title, description, start_date/end_date ("YYYY-MM-DD HH:mm:ss", Europe/Rome), all_day, url, website, venue{venue,address,city,province,zip}, organizer, categories`
 - **Mappatura**: `start_date`→start + timeStart (null se all_day), `venue.venue`→venue, `venue.address/zip/city/province`→address, city default MILANO; filtro finestra `fromDate..toDate`, dedup per `url`, max pagine via `limits["<sourceId>Pages"]` (default 3)
 - **Nota**: l'export `.ics` (`/events.ics`) non è esposto via REST su questi siti (404): si usa solo il JSON
+- **Pin location BASE Milano**: BASE è uno spazio singolo → gli eventi `tribe-base` convergono tutti sul venue `BASE Milano` (Via Tortona 40, 20144 Milano, 45.4509 / 9.1587) con coordinate fisse nel fetcher: 0 chiamate geocoder, 1 sola riga `venues`, marker unico in mappa. Verificato live: 12 eventi, `geocoded: 0`, `venues` = 1 riga.
 - **Stato**: verificato live — 26 eventi (BASE 11, Magazzini 7, Eventi@Milano 8), 0 errori; geo via tabella `venues` (venue name → coords riutilizzate)
 
 ## 2. MilanoToday Eventi (ATTIVO)
