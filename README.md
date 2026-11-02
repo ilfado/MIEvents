@@ -27,9 +27,16 @@ Vedi `server/src/connectors.md` per il dettaglio campo-per-campo di ogni sito.
 - **Vista mappa** con Leaflet/OpenStreetMap: marker colorati per categoria, popup con dettagli, filtro per area visibile.
 - **Installabile** come PWA (manifest + icone; service worker con cache versionata e strategia network-first su HTML/asset, così gli aggiornamenti arrivano al primo reload), layout responsive mobile-first.
 
-### Geolocalizzazione via tabella `venues`
+### Geolocalizzazione via DB `venues` (costruito PRIMA degli eventi)
 
-I locali sono indicizzati in `venues(id, name, address, city, lat, lon)`: ogni evento con venue/indirizzo fa upsert del locale e **riusa le coordinate già geocodificate** (una sola chiamata Nominatim per venue, non per evento). API: `GET /api/venues`.
+I locali sono indicizzati in `venues(id, name, address, city, lat, lon, source)`. Ogni sync esegue prima una
+**fase venue** (`runVenueSync`) che popola il DB da fonti autorevoli: **Ticketmaster search venues**
+(`venues.json?latLong=45.4642,9.19&radius=100&unit=km`, coordinate già pronte, zero Nominatim) e la
+**directory circoli ARCI** (`portale.arci.it`, sedi provincia MI). Le venue vengono cross-checkate con quelle
+già registrate (match per nome case-insensitive) e i **pin curati** (`core/venue-pins.ts`) vincono sempre sulle
+coordinate delle API. Poi gli eventi riutilizzano le coordinate del venue (`coordsFor`, match anche per
+contenimento nome): **una sola chiamata Nominatim per venue, non per evento**. API: `GET /api/venues`.
+Disabilitare la fase venue con `SYNC_VENUES=0`.
 
 ## Stack
 
@@ -90,6 +97,7 @@ npm test               # test unitari e API (node:test, DB in-memory, fetch mock
 | `SYNC_ON_START` | `1` | Sync all'avvio (`0` per disabilitare) |
 | `SYNC_GEOCODE` | `1` | Geocoding durante la sync (`0` per disabilitare) |
 | `SYNC_MAX_GEOCODE` | `15` | Massimo indirizzi geocodificati per sync (Nominatim 1 req/s → 15/sync = ~0 costo) |
+| `SYNC_VENUES` | `1` | Fase di sync dei venue (Ticketmaster venues 100 km + circoli ARCI) prima degli eventi (`0` per disabilitare) |
 | `SYNC_INTERVAL_MS` | `43200000` | Intervallo sync periodica (12h — per stare nei limiti gratuiti) |
 | `TICKETMASTER_API_KEY` | — | API key gratuita Ticketmaster Discovery (opzionale) |
 | `EVENTBRITE_USER_TOKEN` | — | **User OAuth token** Eventbrite (flusso authorization-code + consenso, scope `public`) — diverso dalla api/private key |

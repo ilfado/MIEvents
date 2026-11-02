@@ -11,6 +11,7 @@ export interface ServerConfig {
   syncGeocode: boolean;
   syncOnStart: boolean;
   syncMaxGeocode: number;
+  syncVenues: boolean;
 }
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
@@ -22,5 +23,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
     syncGeocode: env.SYNC_GEOCODE !== "0",
     syncOnStart: env.SYNC_ON_START !== "0",
     syncMaxGeocode: Number(env.SYNC_MAX_GEOCODE ?? 15),
+    syncVenues: env.SYNC_VENUES !== "0",
   };
 }

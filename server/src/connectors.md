@@ -3,6 +3,30 @@
 Ogni connettore è un `EventSource` in `server/src/adapters/outbound/fetchers/` e produce `EventDraft`
 (core), poi persistito via `EventRepository` (SQLite + FTS5). Vedi `application/ports.ts` per i contratti.
 
+## DB venues — fase PRIMA degli eventi (venue sync)
+
+`runSync` esegue prima `runVenueSync` (`application/services/venue-sync.ts`), che popola la tabella
+`venues` da sorgenti dedicate (`VenueSource` in `adapters/outbound/fetchers/venues.ts`), poi le sorgenti
+evento riutilizzano le coordinate già in DB (`venues.coordsFor`) e consumano il budget Nominatim solo
+per i venue ancora senza coordinate. Risultato: **1 chiamata di geolocalizzazione per venue, non per evento**.
+
+Sorgenti venue attive (`venueSources(env)`):
+
+| Sorgente | Endpoint | Stato | Note |
+| --- | --- | --- | --- |
+| **Ticketmaster Discovery — search venues** | `GET https://app.ticketmaster.com/discovery/v2/venues.json?apikey=..&latLong=45.4642,9.19&radius=100&unit=km&size=100&page=N` | attivo con `TICKETMASTER_API_KEY` | centro Milano (Duomo), **radius 100 km**, paginata (`page.totalPages`, max `limits["tmVenuesPages"]` default 5). Verificato live: senza chiave risponde `{"fault":{"faultstring":"Invalid ApiKey"}}` → endpoint e parametri validi. Risposta `_embedded.venues[]` con `name, address.line1, city.name, postalCode, location.latitude/longitude, url`. Filtro client: coordinate dentro provincia MI (bbox) oppure, se assenti, `city ~ Milano`. Le coordinate dell'API entrano dritte in `venues` (zero Nominatim) |
+| **ARCI — directory circoli** | `https://portale.arci.it/cerca/circolo/` (filtro comitato "ARCI MILANO - LO - MB" letto dal form) → schede `/dettaglio/circolo/{id}/{slug}/` | **attivo senza chiave** | il filtro per comitato si ricava parsando le `<select>` della pagina (`findComitatoParam`); dalle schede si estrae "Sede legale VIA…, N - CAP CITTÀ PR" e si tengono solo le sedi con **provincia MI**. Nessuna coordinata (verranno geocodificate una sola volta quando un evento le referenzia, oppure ereditate dai pin). Limiti: `limits["arciPages"]` (default 4), `limits["arciDetails"]` (default 60), delay 700 ms tra le schede |
+
+Merge/cross-check (`mergeVenueDraft`): match per **nome case-insensitive** (`venues.findByName`) contro i venue
+già registrati; se la riga esiste si riempiono solo i campi mancanti (coordinate se assenti, address/city se
+vuoti, `source`); se non esiste si crea la riga. **I pin curati di `core/venue-pins.ts` vincono sempre** sulle
+coordinate delle API: un venue TM/ARCI con nome corrispondente a un pin viene riallineato al pin corretto.
+`coordsFor` ora fa match anche per contenimento del nome (≥ 6 caratteri, entrambi i versi), così
+"Magazzini Generali Milano" (TM) trova la riga "Magazzini Generali".
+
+Disattivazione: `SYNC_VENUES=0` (env) oppure `syncVenues: false` nelle `SyncOptions`; la summary di sync
+espone `venuesSynced` e `sync_state["last_venues"]`. `GET /api/venues` ora include anche `source`.
+
 ## Connettori ATTIVI (senza chiave)
 
 | Fonte | Endpoint | Formato | Verifica live |
@@ -16,8 +40,9 @@ Ogni connettore è un `EventSource` in `server/src/adapters/outbound/fetchers/` 
 | **Santeria Milano** | `santeria.milano.it/wp-json/wp/v2/eventi` | WP REST JSON (data estratta dal testo) | eventi club |
 | **RSS testate** (ViviMilano spettacoli, MilanoEvents, Eventi@Milano concerti) | feed RSS pubblici | RSS → filtro keyword evento + area MI + data da testo/pubDate | normalizzati in `events` |
 
-## Ticketmaster — formato date richiesto
+## Ticketmaster — formato date richiesto + geo
 `startDateTime`/`endDateTime` devono essere `YYYY-MM-DDTHH:mm:ssZ` (no millisecondi, con Z), `sort` solo `date,asc` etc. (no `date,asc` con virgola+spazio).
+La search eventi usa `latLong=45.4642,9.19&radius=100&unit=km` (Milano + provincia; filtro client addizionale `inMilanoProvince` sul venue). La search **venues** (per il DB venues) usa gli stessi `latLong/radius/unit` su `/discovery/v2/venues.json` — vedi sezione "DB venues" sopra. Verifica live: senza `apikey` valida l'endpoint risponde `Invalid ApiKey` (oauth.v2.InvalidApiKey), quindi URL e parametri sono corretti; con chiave valida tornano `_embedded.events` / `_embedded.venues`.
 
 ## Connettori con API key gratuite (attivabili via env, MAI in chat/codice)
 
@@ -75,13 +100,15 @@ categoria, intervallo date, bounding box, salvati.
 - **Rate limit**: 1 dettaglio ogni ~700 ms, max ~60 pagine dettaglio per sync
 - **Stato**: verificato live (JSON-LD Event presente su pagine evento; listing dal/al restituisce ~39 link/mese)
 
-## 3. Eventbrite (NON ATTIVO — documentato)
-- **API pubblica**: `GET https://www.eventbriteapi.com/v3/events/search/` richiede **token OAuth personale**;
-  senza token risponde 404. La ricerca pubblica è stata ritirata da Eventbrite.
-- **Pagine HTML** (`eventbrite.com/d/italy--milano/...`) répondent 405 a fetch non-browser (anti-bot).
-- **Decisione**: non scraping di pagine anti-bot (viola ToS e fragile). Da attivare solo con `EVENTBRITE_USER_TOKEN` in env:
-  il connettore è predisposto (`location.address=Milano, location.within=50km, start_date.range_start`).
-- Per abilitarlo: imposta `EVENTBRITE_USER_TOKEN` (+ `EVENTBRITE_SEARCH=1`).
+## 3. Eventbrite (ATTIVABILE con token — verificato)
+- **API pubblica**: `GET https://www.eventbriteapi.com/v3/events/search/` richiede **user OAuth token** in
+  header `Authorization: Bearer <token>`; senza token risponde **404 NOT_FOUND** (verificato live), con token
+  non valido 401. La ricerca pubblica web è stata ritirata da Eventbrite.
+- Il connettore è attivo solo con `EVENTBRITE_USER_TOKEN` **e** `EVENTBRITE_SEARCH=1` (gate di sicurezza, default off):
+  `location.address=Milano,Italy&location.within=100km`, `start_date.range_start/end`, `order_by=start_asc`,
+  `page_size=100`, **`expand=venue,organizer`** (senza expand `venue`/`organizer` sono solo ID numerici).
+  Filtro client: coordinate dentro provincia MI e `start <= toDate`. Mapping testato in `venues.test.ts`.
+- **Pagine HTML** (`eventbrite.com/d/italy--milano/...`) rispondono 405 a fetch non-browser (anti-bot): no scraping.
 
 ## 4. ArciBellezza (NON RAGGIUNGIBILE — documentato)
 - `https://arcibellezza.it/eventi/` e `/feed/` e `/wp-json/...` rispondono **202 con challenge
@@ -91,9 +118,36 @@ categoria, intervallo date, bounding box, salvati.
 - Se ArciBellezza espone in futuro un feed iCal/RSS pubblico o una REST API aperta, basta aggiungere
   un `Connector` in `connectors.ts`.
 
+## 4b. ARCI — directory circoli (portale.arci.it) come DB venues (ATTIVO)
+- La pagina pubblica `https://www.arci.it/trova-il-tuo-circolo/` è un form JS: il dato strutturato vive nel
+  **portale.arci.it** (cerca/circolo, ~4.2k circoli filtrabili per Regione/Comitato/Attività/Nome, paginato `?p=N`),
+  ogni scheda `/dettaglio/circolo/{id}/{slug}/` riporta "Sede legale VIA…, N - CAP CITTÀ PR".
+- Il connettore `arci-circoli` (in `venues.ts`, zero chiavi) legge il filtro comitato "ARCI MILANO - LO - MB"
+  direttamente dalle `<select>` della pagina, pagina la ricerca, scarica le schede (max `arciDetails`, delay 700 ms)
+  e registra in `venues` solo le sedi con **provincia MI** (nome + indirizzo, coordinate nulle: poi pin o una
+  sola geocoding Nominatim quando un evento le usa).
+- `www.arci.it` espone anche via WP REST un CPT `appuntamento` (eventi nazionali) con tassonomie
+  `provincia`/`tipologia-evento`, ma **senza campi data/luogo strutturati** (solo titolo + HTML) e il namespace
+  custom `arci/v2` espone solo `/convenzioni`: non utilizzabile come sorgente eventi. ArciBellezza resta
+  anti-bot (202 SG Captcha) — vedi sezione 4.
+
+## 7. Ricerca altre basi eventi (audit 2026-11)
+- **dati.lombardia.it `c2m5-htuw` "Cultura/Eventi"**: dataset Socrata ma **statico** (10 righe, periodo_rif 2018,
+  solo `toponimo/indirizzo/denominazione/data_inizio`, niente geo né provincia) → escluso.
+- **E015 "EDT – Eventi in Lombardia"** (api-detail e015.regione.lombardia.it): aggregatore ufficiale regionale,
+  ma le API E015 sono **restricted** (accesso solo ad app registrate/autorizzate) → non usabile senza credenziali.
+- **dati.comune.milano.it**: portale **CKAN** (`/api/3/action/package_search`, ~2.594 dataset); nessun dataset
+  eventi georeferenziato e live individuato (portale temporaneamente down durante l'audit) → non integrato.
+- **Songkick** (API dismessa), **dice.fm** (solo API non-ufficiali), **SeatGeek** (no metro Milano): esclusi.
+- Già coperti e attivi: Regione Lombardia (sagre/fiere + area pubblica con geo), TEC/WP (BASE, Magazzini
+  Generali, Eventi@Milano), MilanoToday JSON-LD, Cheventi JSON-LD, Santeria WP, Wikidata/QLever, RSS;
+  con chiave: Ticketmaster (eventi + venues), Eventbrite (search), Bandsintown (artist-only).
+- Anti-bot, esclusi: teatro.it (403), concerti-italia.it (202), arcibellezza.it (202), eventbrite.com HTML (405),
+  yesmilano.it (403).
+
 ## Geolocalizzazione: pin costanti + tabella `venues`
 
-Prima del geocoder, `sync.ts` applica `pinForVenue()` (`core/venue-pins.ts`): dizionario di venue noti di Milano/provincia con coordinate fisse (BASE, Magazzini Generali, Alcatraz, Fabrique, Santeria, Magnolia/Idroscalo, Leoncavallo, Carroponte, Arcimboldi, Carcano, Franco Parenti, Elfo Puccini, Menotti, Out Off, Zona K, Fabbrica del Vapore, HangarBicocca, Blue Note, Unipol Forum/Dome, Duomo, Sant'Eustorgio, La Scala, Piccolo, Triennale, Castello Sforzesco…). Matching su nome normalizzato (accents/case-insensitive, exact + contenimento per chiavi ≥6 caratteri) e su indirizzo. I pin non consumano budget Nominatim e vengono persistiti in `venues`, così compaiono in `/api/venues` e unificano il marker in mappa. Verificato live: 41 eventi, venue pinnati corretti (Magazzini 7 eventi → 1 pin, Duomo, Sant'Eustorgio, Arcimboldi, Unipol Dome…), restano senza geo solo i venue minori non in dizionario (risolti poi da Nominatim).
+Prima del geocoder, `sync.ts` applica `pinForVenue()` (`core/venue-pins.ts`): dizionario di venue noti di Milano/provincia con coordinate fisse (BASE, **Magazzini Generali — corretto a 45.4441, 9.1953 (Via Pietrasanta 16, 20141; prima puntava erroneamente in zona Darsena 9.1696)**, Alcatraz, Fabrique, Santeria, Magnolia/Idroscalo, Leoncavallo, Carroponte, Arcimboldi, Carcano, Franco Parenti, Elfo Puccini, Menotti, Out Off, Zona K, Fabbrica del Vapore, HangarBicocca, Blue Note, Unipol Forum/Dome, Duomo, Sant'Eustorgio, La Scala, Piccolo, Triennale, Castello Sforzesco…). I pin vincono sempre sulle coordinate delle sorgenti esterne (vedi merge in `venue-sync.ts`). Matching su nome normalizzato (accents/case-insensitive, exact + contenimento per chiavi ≥6 caratteri) e su indirizzo. I pin non consumano budget Nominatim e vengono persistiti in `venues`, così compaiono in `/api/venues` e unificano il marker in mappa. Verificato live: 41 eventi, venue pinnati corretti (Magazzini 7 eventi → 1 pin, Duomo, Sant'Eustorgio, Arcimboldi, Unipol Dome…), restano senza geo solo i venue minori non in dizionario (risolti poi da Nominatim).
 
 ## Geolocalizzazione: tabella `venues`
 

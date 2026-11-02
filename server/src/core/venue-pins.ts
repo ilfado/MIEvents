@@ -16,7 +16,7 @@ function norm(s: string): string {
 
 const PINS: [string, VenuePinPoint][] = [
   ["base milano", { lat: 45.4509, lon: 9.1587, address: "Via Tortona 40, 20144 Milano", city: "MILANO" }],
-  ["magazzini generali", { lat: 45.4444, lon: 9.1696, address: "Via Pietrasanta 16, 20141 Milano", city: "MILANO" }],
+  ["magazzini generali", { lat: 45.4441, lon: 9.1953, address: "Via Pietrasanta 16, 20141 Milano", city: "MILANO" }],
   ["alcatraz", { lat: 45.4946, lon: 9.1825, address: "Via Valtellina 25, 20159 Milano", city: "MILANO" }],
   ["fabrique", { lat: 45.4593, lon: 9.2255, address: "Via Fantoli 28, 20138 Milano", city: "MILANO" }],
   ["santeria", { lat: 45.4611, lon: 9.1747, address: "Via Ettore Ponti 33, 20143 Milano", city: "MILANO" }],

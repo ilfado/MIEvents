@@ -22,11 +22,28 @@ export interface SourceResult {
   error?: string;
 }
 
+export interface VenueDraft {
+  name: string;
+  address: string | null;
+  city: string;
+  lat: number | null;
+  lon: number | null;
+  source: string;
+  url: string | null;
+}
+
+export interface VenueSourceResult {
+  sourceId: string;
+  venues: VenueDraft[];
+  error?: string;
+}
+
 export interface SyncSummary {
   fetched: number;
   inserted: number;
   updated: number;
   geocoded: number;
+  venuesSynced: number;
   durationMs: number;
   errors: string[];
 }
@@ -38,6 +55,7 @@ export interface SyncOptions {
   maxGeocode?: number;
   geocodeSleepMs?: number;
   sources?: Record<string, boolean>;
+  syncVenues?: boolean;
   limits?: Record<string, number>;
   fetchImpl?: typeof fetch;
   env?: NodeJS.ProcessEnv;
