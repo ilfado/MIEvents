@@ -4,6 +4,12 @@ import { EMPTY_FILTERS, type Filters } from "../api.js";
 import { categoryLabel } from "../format.js";
 import { QUICK_CATEGORIES, quickDateRange, type QuickDate } from "../dates.js";
 
+export interface ActiveFilter {
+  key: string;
+  label: string;
+  clear: () => void;
+}
+
 export function FiltersBar({
   filters,
   quickDate,
@@ -21,14 +27,38 @@ export function FiltersBar({
 }) {
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const set = (patch: Partial<Filters>) => onChange({ ...filters, ...patch });
-  const hasAdvanced = Boolean(filters.city || filters.from || filters.to);
+
+  const active: ActiveFilter[] = [];
+  if (filters.q.trim()) active.push({ key: "q", label: `cerca: "${filters.q.trim()}"`, clear: () => set({ q: "" }) });
+  if (quickDate) {
+    const range = quickDateRange(quickDate);
+    active.push({
+      key: "qd",
+      label: quickDate === "today" ? `oggi ${range?.from ?? ""}` : `weekend ${range?.from ?? ""}→${range?.to ?? ""}`,
+      clear: () => onQuickDate(""),
+    });
+  }
+  if (filters.city) active.push({ key: "city", label: `luogo: ${filters.city}`, clear: () => set({ city: "" }) });
+  if (filters.category) active.push({ key: "cat", label: `tipo: ${categoryLabel(filters.category)}`, clear: () => set({ category: "" }) });
+  if (filters.from || filters.to) {
+    active.push({
+      key: "date",
+      label: `data: ${filters.from || "…"} → ${filters.to || "…"}`,
+      clear: () => { set({ from: "", to: "" }); onQuickDate(""); },
+    });
+  }
+
+  const resetAll = () => {
+    onChange({ ...EMPTY_FILTERS });
+    onQuickDate("");
+  };
 
   return (
     <div className="filters">
       <div className="filters-row">
         <input
           type="search"
-          placeholder="Cerca per titolo, luogo, organizzatore…"
+          placeholder="CERCA EVENTO, LUOGO, ORGANIZZATORE…"
           value={filters.q}
           onChange={(e) => set({ q: e.target.value })}
           aria-label="Cerca eventi"
@@ -37,7 +67,7 @@ export function FiltersBar({
       </div>
 
       <div className="chips" role="group" aria-label="Filtri rapidi">
-        {([["today", "Oggi"], ["weekend", "Questo weekend"]] as Array<[QuickDate, string]>).map(([value, label]) => (
+        {([["today", "Oggi"], ["weekend", "Weekend"]] as Array<[QuickDate, string]>).map(([value, label]) => (
           <button
             key={value}
             type="button"
@@ -61,25 +91,34 @@ export function FiltersBar({
         ))}
         <button
           type="button"
-          className={`chip chip-advanced ${advancedOpen || hasAdvanced ? "chip-active" : ""}`}
+          className={`chip chip-advanced ${advancedOpen ? "chip-active" : ""}`}
           aria-expanded={advancedOpen}
           onClick={() => setAdvancedOpen((v) => !v)}
         >
-          {advancedOpen ? "▲ Filtri" : "▼ Filtri"}
-          {hasAdvanced && !advancedOpen ? " •" : ""}
+          {advancedOpen ? "▲ Altri filtri" : "▼ Altri filtri"}
         </button>
-        <span className="result-count">{resultCount} eventi</span>
+        <span className="result-count" aria-live="polite">{resultCount} eventi</span>
       </div>
+
+      {active.length > 0 && (
+        <div className="active-filters" aria-label="Filtri attivi">
+          <span className="af-label">Attivi:</span>
+          {active.map((a) => (
+            <button key={a.key} type="button" className="af-badge" onClick={a.clear} title={`Rimuovi ${a.label}`}>
+              {a.label} ✕
+            </button>
+          ))}
+          <button type="button" className="af-badge" onClick={resetAll}>azzera ✕</button>
+        </div>
+      )}
 
       {advancedOpen && (
         <div className="filters-advanced">
           <div className="filters-row">
             <select value={filters.city} onChange={(e) => set({ city: e.target.value })} aria-label="Comune">
-              <option value="">Tutti i comuni</option>
+              <option value="">TUTTI I COMUNI</option>
               {cities.map((c) => (
-                <option key={c} value={c}>
-                  {c}
-                </option>
+                <option key={c} value={c}>{c}</option>
               ))}
             </select>
             <select
@@ -87,44 +126,23 @@ export function FiltersBar({
               onChange={(e) => set({ category: e.target.value as EventCategory | "saved" | "" })}
               aria-label="Tipologia"
             >
-              <option value="">Tutte le tipologie</option>
-              <option value="saved">★ Solo salvati</option>
+              <option value="">TUTTE LE TIPOLOGIE</option>
+              <option value="saved">★ SOLO SALVATI</option>
               {EVENT_CATEGORIES.map((c) => (
-                <option key={c} value={c}>
-                  {categoryLabel(c)}
-                </option>
+                <option key={c} value={c}>{categoryLabel(c).toUpperCase()}</option>
               ))}
             </select>
           </div>
           <div className="filters-row">
             <label className="date-field">
-              Dal
-              <input
-                type="date"
-                value={filters.from}
-                onChange={(e) => set({ from: e.target.value })}
-                aria-label="Data inizio"
-              />
+              DAL
+              <input type="date" value={filters.from} onChange={(e) => set({ from: e.target.value })} aria-label="Data inizio" />
             </label>
             <label className="date-field">
-              Al
-              <input
-                type="date"
-                value={filters.to}
-                onChange={(e) => set({ to: e.target.value })}
-                aria-label="Data fine"
-              />
+              AL
+              <input type="date" value={filters.to} onChange={(e) => set({ to: e.target.value })} aria-label="Data fine" />
             </label>
-            <button
-              type="button"
-              className="btn-reset"
-              onClick={() => {
-                onChange({ ...EMPTY_FILTERS });
-                onQuickDate("");
-              }}
-            >
-              Azzera
-            </button>
+            <button type="button" className="btn-reset" onClick={resetAll}>AZZERA</button>
           </div>
         </div>
       )}
