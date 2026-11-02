@@ -60,6 +60,7 @@ export interface EventFilters {
   savedOnly?: boolean;
   includePast?: boolean;
   all?: boolean;
+  geoOnly?: boolean;
   limit?: number;
   offset?: number;
 }
