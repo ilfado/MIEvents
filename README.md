@@ -1,4 +1,6 @@
-# MIEvents
+# MIEvents v1.0
+
+> Prima release stabile (v1.0.0): lista + mappa MapLibre (limiti Nord Italia), filtri rapidi, salvataggio, multi-fonte (open data + JSON-LD + RSS + API key opzionali).
 
 App per cercare, salvare e visualizzare su **lista e mappa** gli eventi a Milano e in provincia.
 
