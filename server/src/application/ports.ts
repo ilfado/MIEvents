@@ -31,6 +31,7 @@ export interface EventSource {
 export interface SourceContext {
   fetchImpl: typeof fetch;
   fromDate: string;
+  toDate: string;
   geocode: boolean;
   geocodeSleepMs: number;
   maxGeocode: number;

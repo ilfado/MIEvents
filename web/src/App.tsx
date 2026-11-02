@@ -17,9 +17,7 @@ export default function App() {
   const [view, setView] = useState<"list" | "map">("list");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [recenterKey, setRecenterKey] = useState(0);
   const [filterByArea, setFilterByArea] = useState(false);
-  const [showStreets, setShowStreets] = useState(false);
   const bboxRef = useRef<string | undefined>(undefined);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
@@ -28,12 +26,12 @@ export default function App() {
     void fetchCities().then(setCities).catch(() => setCities([]));
   }, []);
 
-  const load = useCallback(async (f: Filters) => {
+  const load = useCallback(async (f: Filters, append = false) => {
     setLoading(true);
     setError(null);
     try {
       const res = await fetchEvents({ ...f, bbox: filterByArea ? bboxRef.current : undefined });
-      setEvents(res.events);
+      setEvents((prev) => (append ? [...prev, ...res.events] : res.events));
       setTotal(res.total);
     } catch (e) {
       setError((e as Error).message);
@@ -41,6 +39,10 @@ export default function App() {
       setLoading(false);
     }
   }, [filterByArea]);
+
+  const loadMore = useCallback(() => {
+    void load({ ...filters, offset: events.length }, true);
+  }, [load, filters, events.length]);
 
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -54,15 +56,11 @@ export default function App() {
     setSelectedId(e.id);
     if (view === "list") {
       setView("map");
-      setRecenterKey((k) => k + 1);
     }
   }, [view]);
 
   const onSelectFromMap = useCallback((e: MiEvent) => {
     setSelectedId(e.id);
-    if (view === "map") {
-      setRecenterKey((k) => k + 1);
-    }
     const el = listRef.current?.querySelector(`[data-event-id="${e.id}"]`);
     el?.scrollIntoView({ behavior: "smooth", block: "center" });
   }, [view]);
@@ -146,20 +144,22 @@ export default function App() {
               <EventCard event={e} selected={e.id === selectedId} onSelect={onSelect} onToggleSaved={onToggleSaved} />
             </div>
           ))}
+          {!loading && events.length < total && (
+            <button type="button" className="btn-reset load-more" onClick={loadMore}>
+              CARICA ALTRI ({events.length}/{total})
+            </button>
+          )}
         </main>
       ) : (
         <main className="map-wrap">
-          <Suspense fallback={<div className="map map-fallback">CARICAMENTO MAPPA…</div>}>
+          <Suspense fallback={<div className="map-canvas map-fallback">CARICAMENTO MAPPA…</div>}>
             <EventMap
               events={events}
               selectedId={selectedId}
               onSelect={onSelectFromMap}
               onBbox={onBbox}
-              recenterKey={recenterKey}
               filterByArea={filterByArea}
               onToggleArea={onToggleArea}
-              showStreets={showStreets}
-              onToggleStreets={() => setShowStreets((v) => !v)}
             />
           </Suspense>
           {selected && (

@@ -239,8 +239,10 @@ export function createEventRepository(db: DatabaseSync): EventRepository {
         clauses.push("date(start) <= date(?)");
         params.push(parseIsoDate(f.to, "to"));
       }
-      if (!f.from && !f.to && !f.includePast) {
+      if (!f.all && !f.includePast) {
         clauses.push("date(COALESCE(end, start)) >= date('now', 'localtime')");
+        clauses.push("date(start) <= date('now', 'localtime', '+15 days')");
+        if (!f.from && !f.to) clauses.push("lat IS NOT NULL AND lon IS NOT NULL");
       }
       if (f.bbox) {
         const b = parseBbox(f.bbox);
@@ -250,9 +252,11 @@ export function createEventRepository(db: DatabaseSync): EventRepository {
       }
       const where = clauses.length > 0 ? `WHERE ${clauses.join(" AND ")}` : "";
       const total = (db.prepare(`SELECT COUNT(*) AS c FROM events ${where}`).get(...params) as { c: number }).c;
+      const limit = Math.min(Math.max(f.limit ?? 100, 1), 500);
+      const offset = Math.max(f.offset ?? 0, 0);
       const rows = db
-        .prepare(`SELECT events.* FROM events ${where} ORDER BY date(start) ASC, time_start ASC LIMIT 2000`)
-        .all(...params) as unknown as EventRow[];
+        .prepare(`SELECT events.* FROM events ${where} ORDER BY date(start) ASC, time_start ASC LIMIT ? OFFSET ?`)
+        .all(...params, limit, offset) as unknown as EventRow[];
       return { total, events: rows.map(rowToEvent) };
     },
     listCities() {

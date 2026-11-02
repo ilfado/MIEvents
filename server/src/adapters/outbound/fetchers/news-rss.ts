@@ -22,8 +22,8 @@ function newsRssSource(opts: { feedUrl: string; sourceId: string; sourceName: st
         const text = `${item.title} ${item.description}`;
         if (!EVENT_RE.test(text)) continue;
         if (!MI_AREA_RE.test(text) && !MI_AREA_RE.test(item.link)) continue;
-        const start = extractDateFromText(text) ?? (item.pubDate ? new Date(item.pubDate).toISOString().slice(0, 10) : null);
-        if (!start || start < ctx.fromDate) continue;
+        const start = extractDateFromText(text);
+        if (!start || start < ctx.fromDate || start > ctx.toDate) continue;
         if (seen.has(item.link)) continue;
         seen.add(item.link);
         events.push({

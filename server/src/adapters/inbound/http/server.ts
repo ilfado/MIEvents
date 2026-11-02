@@ -48,6 +48,11 @@ function parseFilters(url: URL): EventFilters {
   if (bbox) f.bbox = bbox;
   if (p.get("saved") === "1") f.savedOnly = true;
   if (p.get("includePast") === "1") f.includePast = true;
+  if (p.get("all") === "1") f.all = true;
+  const limit = p.get("limit");
+  if (limit) f.limit = Number(limit);
+  const offset = p.get("offset");
+  if (offset) f.offset = Number(offset);
   return f;
 }
 

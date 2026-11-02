@@ -18,7 +18,7 @@ SELECT ?event ?label ?coord ?date ?end WHERE {
   ?event wdt:P585 ?date .
   OPTIONAL { ?event wdt:P582 ?end }
   OPTIONAL { ?event rdfs:label ?label . FILTER(LANG(?label) = "it") }
-  FILTER(?date >= "${ctx.fromDate}T00:00:00Z"^^<http://www.w3.org/2001/XMLSchema#dateTime>)
+  FILTER(?date >= "${ctx.fromDate}T00:00:00Z"^^<http://www.w3.org/2001/XMLSchema#dateTime> && ?date <= "${ctx.toDate}T23:59:59Z"^^<http://www.w3.org/2001/XMLSchema#dateTime>)
 } ORDER BY DESC(?date) LIMIT ${limit}`;
     const json = (await getJson(ctx.fetchImpl, `${ENDPOINT}?query=${encodeURIComponent(query)}`)) as {
       results?: { bindings: Array<Record<string, { value: string }>> };

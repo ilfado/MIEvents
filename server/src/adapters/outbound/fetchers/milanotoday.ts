@@ -17,7 +17,7 @@ export const milanotodaySource: EventSource = {
     const maxDetails = ctx.limits["milanotodayDetails"] ?? 40;
     const delay = 700;
     const from = ctx.fromDate;
-    const to = new Date(Date.now() + 60 * 86400000).toISOString().slice(0, 10);
+    const to = ctx.toDate;
     const detailUrls: string[] = [];
     for (let page = 1; page <= maxPages; page++) {
       const url = page === 1 ? milanotodayRangeUrl(from, to) : `${milanotodayRangeUrl(from, to)}?page=${page}`;
@@ -36,7 +36,7 @@ export const milanotodaySource: EventSource = {
         for (const ev of extractJsonLdEvents(html)) {
           const draft = ldToDraft(ev, this.id, "MilanoToday Eventi");
           if (!draft || !draft.url) continue;
-          if (draft.start < from) continue;
+          if (draft.start < from || draft.start > ctx.toDate) continue;
           const key = `${draft.title}|${draft.start}`;
           if (seen.has(key)) continue;
           seen.add(key);
