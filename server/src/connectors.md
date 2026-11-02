@@ -1,5 +1,8 @@
 # Connettori eventi — formato e stato
 
+Ogni connettore è un `EventSource` in `server/src/adapters/outbound/fetchers/` e produce `EventDraft`
+(core), poi persistito via `EventRepository` (SQLite + FTS5). Vedi `application/ports.ts` per i contratti.
+
 ## Connettori ATTIVI (senza chiave)
 
 | Fonte | Endpoint | Formato | Verifica live |

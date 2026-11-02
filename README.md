@@ -91,18 +91,36 @@ npm test               # test unitari e API (node:test, DB in-memory, fetch mock
 
 Le API key si impostano **solo come variabili d'ambiente nel deploy** (mai in chat o nel codice): su Render → Settings → Environment → Add Environment Variable. Senza chiavi i connettori restano spenti e gli altri continuano a funzionare.
 
-## Struttura
+## Struttura (architettura esagonale / ports & adapters)
 
 ```
+server/src/
+  core/                 dominio puro, zero dipendenze I/O: types, text utils, jsonld, rss, categorize
+  application/          ports.ts (EventRepository, VenueRepository, Geocoder, EventSource, SyncService)
+                        services/sync.ts (orchestrazione sorgenti → persistenza → geocoding)
+  adapters/
+    inbound/http/       server.ts (API REST + static SPA), main.ts (bootstrap, config, scheduler)
+    outbound/
+      fetchers/         sorgenti eventi: lombardia (Socrata), milanotoday, cheventi, wikidata (QLever),
+                        wp-venues (Santeria), news-rss, ticketing (Ticketmaster/Eventbrite/Bandsintown)
+      repositories/     sqlite.ts (events + FTS5 + venues + sync_state)
+      geo/              nominatim.ts (geocoding con cache in-memory, 1 req/s)
+  config/               variabili d'ambiente
 shared/   tipi TypeScript condivisi (MiEvent, filtri, formato riga Socrata)
-server/   API HTTP, DB SQLite + FTS5, sync multi-fonte (Socrata + RSS + JSON-LD),
-          geocoding, query con filtri
 web/      React + Vite + Leaflet (lista, mappa lazy, filtri, salvataggio, PWA)
 ```
 
-## Perché non Rust/Go (per ora)
+Il flusso è unidirezionale: `fetchers` (outbound) → `core` (normalizzazione) → `application/sync`
+→ `repositories` (outbound). L'HTTP inbound chiama solo porte dell'application layer.
 
-Il server attuale è **zero dipendenze runtime** su Node 22 (`node:http` + `node:sqlite` + `fetch` nativo): un singolo processo, nessun `node_modules` di runtime, binario di fatto il runtime stesso. Un rewrite in Go/Rust darebbe un binario statico più piccolo (~10-15 MB vs ~90 MB di Node) e avvii più rapidi, ma a fronte di riscrivere HTTP, SQLite (via CGO), parsing RSS/XML e test — un costo alto ora che la base dati sta crescendo. La struttura a moduli (`sync.ts`, `feeds.ts`, `query.ts`, `geocode.ts`) è già pronta per un porting: se il piano free stanca (memoria/CPU), il candidato ideale è **Go con modernc.org/sqlite** (SQLite embedded senza CGO), che mantiene l'approccio zero-C.
+## Perché non Rust/Go (ora, su free tier)
+
+Il server resta **zero dipendenze runtime** su Node 22 (`node:http` + `node:sqlite` + `fetch`): un solo
+processo, ~300 kB di `dist`, nessun `node_modules` a runtime, avvio <100 ms — ideale sul free tier
+(che premia memoria/CPU basse, non la dimensione del binario). Go/Rust darebbero un binario statico
+~10 MB, ma richiederebbero di riscrivere HTTP, SQLite (CGO o modernc), parsing e test: costo alto,
+beneficio scarso finché il free tier regge. Se in futuro stanca, il candidato è **Go + modernc.org/sqlite**;
+l'architettura a porte lo rende un porting meccanico per adapters, non un rewrite.
 
 ## Licenza
 
