@@ -22,6 +22,10 @@ test("text utils", () => {
   assert.equal(extractDateFromText("il 7 novembre 2026"), "2026-11-07");
   assert.equal(extractDateFromText("07/11/2026"), "2026-11-07");
   assert.equal(extractDateFromText("nessuna"), null);
+  assert.equal(extractDateFromText("EICMA 2026 a Milano: dal 5 al 9 novembre 2026"), "2026-11-05");
+  assert.equal(extractDateFromText("dal 3 al 7 dicembre 2026 a Rho"), "2026-12-03");
+  assert.equal(extractDateFromText("dall'8 al 10 ottobre 2026"), "2026-10-08");
+  assert.equal(extractDateFromText("dal 5 novembre 2026"), "2026-11-05");
   assert.ok(inMilanoProvince(45.46, 9.19));
   assert.ok(!inMilanoProvince(41.9, 12.5));
   assert.equal(todayIso(new Date("2026-11-01T10:00:00Z")), "2026-11-01");

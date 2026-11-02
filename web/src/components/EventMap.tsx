@@ -44,8 +44,8 @@ interface Cluster {
 
 function cluster(events: MiEvent[], zoom: number): Array<Cluster | { single: MiEvent }> {
   const geo = events.filter((e) => e.lat != null && e.lon != null);
-  if (zoom >= 14 || geo.length < 2) return geo.map((e) => ({ single: e }));
-  const cell = zoom <= 10 ? 0.25 : 0.08;
+  if (zoom >= 13 || geo.length < 2) return geo.map((e) => ({ single: e }));
+  const cell = zoom <= 10 ? 0.12 : 0.04;
   const map = new Map<string, Cluster>();
   for (const e of geo) {
     const key = `${Math.floor((e.lat as number) / cell)},${Math.floor((e.lon as number) / cell)}`;
@@ -376,7 +376,7 @@ export function EventMap({
       const px = e.clientX - rect.left;
       const py = e.clientY - rect.top;
       const v = viewRef.current;
-      applyZoomAt(v.zoom + (e.deltaY < 0 ? 0.5 : -0.5), px, py);
+      applyZoomAt(v.zoom + (e.deltaY < 0 ? 0.25 : -0.25), px, py);
     };
     canvas.addEventListener("wheel", onWheel, { passive: false });
     return () => canvas.removeEventListener("wheel", onWheel);
