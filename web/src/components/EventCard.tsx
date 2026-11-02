@@ -34,19 +34,19 @@ export function EventCard({
         <button
           type="button"
           className={`btn-save ${event.saved ? "btn-saved" : ""}`}
-          aria-pressed={event.saved}
+          aria-pressed={event.saved} aria-label={event.saved ? "Rimuovi dai salvati" : "Salva evento"} title={event.saved ? "Salvato — tocca per rimuovere" : "Salva"}
           onClick={() => onToggleSaved(event)}
         >
-          {event.saved ? "★ Salvato" : "☆ Salva"}
+          {event.saved ? "★" : "☆"}
         </button>
         {event.programUrl && (
           <a className="btn-link" href={event.programUrl} target="_blank" rel="noreferrer">
-            Programma ↗
+            PROGRAMMA ↗
           </a>
         )}
         {event.website && (
           <a className="btn-link" href={event.website} target="_blank" rel="noreferrer">
-            Sito ↗
+            SITO ↗
           </a>
         )}
       </div>
