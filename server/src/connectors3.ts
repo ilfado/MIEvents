@@ -12,6 +12,14 @@ export function apiKeysFromEnv(env: NodeJS.ProcessEnv = process.env): ApiKeyConf
   };
 }
 
+export function bitArtistsFromEnv(env: NodeJS.ProcessEnv = process.env): string[] {
+  const raw = env.BANDSINTWN_ARTISTS ?? "";
+  return raw
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
 const UA = "MIEvents/0.1 (https://github.com/ilfado/MIEvents)";
 
 export interface TicketingEvent {
@@ -129,47 +137,113 @@ export async function fetchEventbriteEvents(
   return events;
 }
 
+const MI_PROVINCE = { south: 44.9, west: 8.4, north: 46.1, east: 10.6 };
+
+interface BandsintownArtistEvent {
+  id?: string;
+  datetime?: string;
+  url?: string;
+  description?: string;
+  title?: string;
+  artists?: Array<{ name?: string }>;
+  venue?: {
+    name?: string;
+    city?: string;
+    region?: string;
+    country?: string;
+    street_address?: string;
+    latitude?: string;
+    longitude?: string;
+  };
+}
+
+function mapBitEvent(e: BandsintownArtistEvent, from: string): TicketingEvent | null {
+  if (!e.datetime) return null;
+  const start = e.datetime.slice(0, 10);
+  if (start < from) return null;
+  const lat = e.venue?.latitude ? Number(e.venue.latitude) : null;
+  const lon = e.venue?.longitude ? Number(e.venue.longitude) : null;
+  if (lat !== null && lon !== null && Number.isFinite(lat) && Number.isFinite(lon)) {
+    if (lat < MI_PROVINCE.south || lat > MI_PROVINCE.north || lon < MI_PROVINCE.west || lon > MI_PROVINCE.east) return null;
+  }
+  const artistNames = (e.artists ?? []).map((a) => a.name).filter(Boolean);
+  const title = e.title || (artistNames.length > 0 ? `${artistNames.join(", ")} in concerto` : null);
+  if (!title) return null;
+  return {
+    sourceId: "bandsintown",
+    sourceName: "Bandsintown",
+    title: title.slice(0, 300),
+    description: e.description?.slice(0, 1000) ?? null,
+    start,
+    end: null,
+    timeStart: e.datetime.includes("T") ? e.datetime.slice(11, 16) : null,
+    timeEnd: null,
+    url: e.url ?? "",
+    venue: e.venue?.name ?? null,
+    address: e.venue?.street_address ?? null,
+    city: (e.venue?.city ?? "MILANO").toUpperCase(),
+    lat: lat !== null && Number.isFinite(lat) ? lat : null,
+    lon: lon !== null && Number.isFinite(lon) ? lon : null,
+    organizer: artistNames[0] ?? null,
+  };
+}
+
+export interface BandsintownOpts {
+  fetchImpl?: typeof fetch;
+  from?: string;
+  artists?: string[];
+  maxArtists?: number;
+  delayMs?: number;
+}
+
 export async function fetchBandsintownEvents(
   appId: string,
-  opts: { fetchImpl?: typeof fetch; from?: string } = {},
+  opts: BandsintownOpts = {},
 ): Promise<TicketingEvent[]> {
   const fetchImpl = opts.fetchImpl ?? fetch;
   const from = opts.from ?? new Date().toISOString().slice(0, 10);
-  const url = `https://rest.bandsintown.com/v4/events?location=Milan,Italy&app_id=${encodeURIComponent(appId)}&date=upcoming&per_page=100`;
-  const res = await fetchImpl(url, {
-    headers: { Accept: "application/json", "User-Agent": UA },
-    signal: AbortSignal.timeout(25000),
-  });
-  if (!res.ok) throw new Error(`Bandsintown HTTP ${res.status}`);
-  const arr = (await res.json()) as Array<{
-    name?: string;
-    datetime?: string;
-    url?: string;
-    description?: string;
-    venue?: { name?: string; city?: string; latitude?: string; longitude?: string; street_address?: string };
-  }>;
+  const artists = opts.artists ?? [];
+  const maxArtists = opts.maxArtists ?? 25;
+  const delay = opts.delayMs ?? 600;
   const events: TicketingEvent[] = [];
-  for (const e of arr ?? []) {
-    if (!e.name || !e.datetime) continue;
-    const start = e.datetime.slice(0, 10);
-    if (start < from) continue;
-    events.push({
-      sourceId: "bandsintown",
-      sourceName: "Bandsintown",
-      title: e.name.slice(0, 300),
-      description: e.description?.slice(0, 1000) ?? null,
-      start,
-      end: null,
-      timeStart: e.datetime.includes("T") ? e.datetime.slice(11, 16) : null,
-      timeEnd: null,
-      url: e.url ?? "",
-      venue: e.venue?.name ?? null,
-      address: e.venue?.street_address ?? null,
-      city: (e.venue?.city ?? "MILANO").toUpperCase(),
-      lat: e.venue?.latitude ? Number(e.venue.latitude) : null,
-      lon: e.venue?.longitude ? Number(e.venue.longitude) : null,
-      organizer: null,
-    });
+  const seen = new Set<string>();
+  let used = 0;
+  for (const artist of artists) {
+    if (used >= maxArtists) break;
+    const name = artist.trim();
+    if (!name) continue;
+    const url = `https://rest.bandsintown.com/artists/${encodeURIComponent(name)}/events?app_id=${encodeURIComponent(appId)}&date=upcoming`;
+    try {
+      const res = await fetchImpl(url, {
+        headers: { Accept: "application/json", "User-Agent": UA },
+        signal: AbortSignal.timeout(20000),
+      });
+      if (!res.ok) continue;
+      const arr = (await res.json()) as BandsintownArtistEvent[];
+      used++;
+      for (const e of Array.isArray(arr) ? arr : []) {
+        const ev = mapBitEvent(e, from);
+        if (!ev) continue;
+        const key = `${ev.title}|${ev.start}|${ev.venue ?? ""}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        events.push(ev);
+      }
+      if (delay > 0 && used < maxArtists) await new Promise((r) => setTimeout(r, delay));
+    } catch {
+      continue;
+    }
   }
   return events;
 }
+
+export const DEFAULT_BIT_ARTISTS = [
+  "Coez", "Calcutta", "Madame", "Mahmood", "Annalisa", "Giorgia", "Elodie", "Marco Mengoni",
+  "Cesare Cremonini", "Samuele Bersani", " Brunori Sas", "Mecna", "Gazzelle", "Tha Sup", "Sfera Ebbasta",
+  "Lazza", "Tananai", " Gaia", "Coma Cose", "Pinguini Tattici Nucleari", "Mambolosco", "Rkomi",
+  " Blanco", "Ariete", "Ditonpiaga", "Levante", "Emma", " Alessandra Amoroso", "Fedez", "Jovanotti",
+  "Vasco Rossi", "Ligabue", "Negramaro", "Subsonica", "Planet Funk", "Pooh", "Riccardo Cocciante",
+  "Antonello Venditti", "Francesco De Gregori", "Lucio Dalla", "Mina", "Laura Pausini", "Eros Ramazzotti",
+  "Andrea Bocelli", "Zucchero", "Elisa", "Tiziano Ferro", "Max Pezzali", "883", "The Kolors",
+];
+

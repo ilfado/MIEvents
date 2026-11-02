@@ -17,7 +17,13 @@
 | --- | --- | --- |
 | Ticketmaster Discovery | `TICKETMASTER_API_KEY` | developer.ticketmaster.com → New App → "Discovery API" key istantanea |
 | Eventbrite | `EVENTBRITE_TOKEN` | eventbrite.com → Account → App Keys → crea app → token personale |
-| Bandsintown | `BANDSINTWN_APP_ID` | bandsintown.com/developer → register app |
+| Bandsintown | `BANDSINTWN_APP_ID` + opz. `BANDSINTWN_ARTISTS` | artist.bandsintown.com → Settings → General → **Get API Key** |
+
+### Bandsintown — nota importante (API artist-only)
+L'API pubblica ufficiale espone **solo** `/artists/{nome}/events` (e `/artists/{nome}`): **non esiste un endpoint per eventi per città/area** (confermato dalla doc ufficiale e da anni di segnalazioni: `/v4/events?location=...` risponde 403). Quindi il connettore interroga una **lista di artisti** e filtra gli eventi per coordinate dentro la provincia di Milano:
+- default: lista preimpostata di ~50 artisti italiani noti (`DEFAULT_BIT_ARTISTS`);
+- personalizzabile con env `BANDSINTWN_ARTISTS=Coez, Mahmood, ...` (max 25 per sync).
+La pagina che hai trovato (apis.io "artist events API") è proprio questo endpoint artist-based — la chiave che hai preso va bene.
 
 Le chiavi si impostano come **Environment Variables** nel deploy (es. Render: Settings → Environment), non nel codice né in chat. Il server le legge con `apiKeysFromEnv()` e attiva i connettori solo se presenti.
 

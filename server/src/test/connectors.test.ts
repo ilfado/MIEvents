@@ -75,11 +75,11 @@ test("fetchMilanotodayEvents walks listing and details with mock fetch", async (
     if (url.includes("wunder-mrkt")) return new Response(DETAIL_HTML, { status: 200 });
     return new Response("<html></html>", { status: 200 });
   }) as typeof fetch;
-  const events = await fetchMilanotodayEvents({ fetchImpl: mockFetch, maxPages: 1, maxDetails: 10, detailDelayMs: 0 });
+  const events = await fetchMilanotodayEvents({ fetchImpl: mockFetch, maxPages: 1, maxDetails: 10, detailDelayMs: 0, from: "2000-01-01" });
   assert.equal(events.length, 1);
   assert.equal(events[0].title, "Wunder Mrkt mercatino vintage");
   assert.equal(events[0].sourceId, "milanotoday-eventi");
-  assert.ok(calls.some((u) => u.includes("/eventi/dal/2026-")));
+  assert.ok(calls.some((u) => u.includes("/eventi/dal/")));
 });
 
 const sampleRow: SagreRow = {
@@ -99,7 +99,7 @@ test("syncEvents with milanotoday connector and no RSS news", async () => {
     return new Response("<html></html>", { status: 200 });
   }) as typeof fetch;
   const db = openDb(":memory:");
-  const result = await syncEvents(db, { fetchImpl: mockFetch, geocode: false, feeds: false, cheventi: false, wikidata: false, wpVenues: false, newsRss: false, ticketing: false });
+  const result = await syncEvents(db, { fetchImpl: mockFetch, geocode: false, feeds: false, cheventi: false, wikidata: false, wpVenues: false, newsRss: false, ticketing: false, fromDate: "2026-01-01" });
   assert.equal(result.errors.length, 0);
   const all = queryEvents(db, { includePast: true });
   assert.equal(all.total, 2);

@@ -10,7 +10,7 @@ import {
   fetchNewsRssEvents,
   toMiEvent,
 } from "../connectors2.js";
-import { fetchTicketmasterEvents, fetchEventbriteEvents, apiKeysFromEnv } from "../connectors3.js";
+import { fetchTicketmasterEvents, fetchEventbriteEvents, fetchBandsintownEvents, apiKeysFromEnv, bitArtistsFromEnv } from "../connectors3.js";
 import { queryEvents } from "../query.js";
 import { openDb } from "../db.js";
 import { syncEvents } from "../sync.js";
@@ -119,6 +119,43 @@ test("fetchNewsRssEvents filters event+Milano items and extracts dates", async (
   assert.equal(oikos!.start, "2026-10-20");
   const muse = events.find((e) => e.title.includes("Muse"));
   assert.equal(muse!.start, "2027-06-15");
+});
+
+test("fetchBandsintownEvents queries artist endpoints and filters to province MI", async () => {
+  const calls: string[] = [];
+  const mockFetch = (async (input: RequestInfo | URL) => {
+    const url = String(input);
+    calls.push(url);
+    if (url.includes("/artists/Coez/")) {
+      return new Response(JSON.stringify([
+        { id: "1", datetime: "2026-11-16T21:00:00", url: "https://bandsintown.com/e/1", artists: [{ name: "Coez" }], venue: { name: "Teatro degli Arcimboldi", city: "Milano", latitude: "45.5086", longitude: "9.2166", street_address: "Viale dell'Innovazione 1" } },
+        { id: "2", datetime: "2025-01-01T21:00:00", artists: [{ name: "Coez" }], venue: { name: "X", city: "Milano" } },
+        { id: "3", datetime: "2026-12-01T21:00:00", artists: [{ name: "Coez" }], venue: { name: "Y", city: "Tokyo", latitude: "35.6", longitude: "139.7" } },
+      ]), { status: 200 });
+    }
+    if (url.includes("/artists/Mahmood/")) {
+      return new Response(JSON.stringify([
+        { id: "4", datetime: "2026-11-20T21:30:00", artists: [{ name: "Mahmood" }], venue: { name: "Alcatraz", city: "Milano", latitude: "45.4945", longitude: "9.1874" } },
+      ]), { status: 200 });
+    }
+    return new Response("[]", { status: 200 });
+  }) as typeof fetch;
+  const events = await fetchBandsintownEvents("APPID", { fetchImpl: mockFetch, artists: ["Coez", "Mahmood", "Inesistente"], from: "2026-01-01", delayMs: 0 });
+  assert.equal(events.length, 2);
+  assert.ok(calls.every((u) => u.includes("app_id=APPID") && u.includes("/events")));
+  const coez = events.find((e) => e.title.includes("Coez"));
+  assert.equal(coez!.start, "2026-11-16");
+  assert.equal(coez!.timeStart, "21:00");
+  assert.equal(coez!.venue, "Teatro degli Arcimboldi");
+  assert.equal(coez!.lat, 45.5086);
+  assert.equal(coez!.city, "MILANO");
+  assert.ok(!events.some((e) => e.city === "TOKYO"));
+  assert.ok(!events.some((e) => e.start === "2025-01-01"));
+});
+
+test("bitArtistsFromEnv parses comma list", () => {
+  assert.deepEqual(bitArtistsFromEnv({ BANDSINTWN_ARTISTS: " Coez , Mahmood ,, " }), ["Coez", "Mahmood"]);
+  assert.deepEqual(bitArtistsFromEnv({}), []);
 });
 
 test("apiKeysFromEnv reads only set keys", () => {
