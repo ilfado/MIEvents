@@ -38,6 +38,10 @@ I locali sono indicizzati in `venues(id, name, address, city, lat, lon)`: ogni e
 - **Finestra temporale default**: la vista principale mostra solo eventi **da oggi a +15 giorni e con geolocalizzazione**; `?all=1` (o `includePast=1`) mostra tutto lo storico. Le sorgenti sincronizzano solo la finestra 15 giorni. Paginazione `limit`/`offset` con pulsante "carica altri".
 - **Dati**: [dati.lombardia.it](https://www.dati.lombardia.it) (CC0), geocoding Nominatim (ODbL), tiles © OpenStreetMap.
 
+## Limiti e costi (free tier)
+
+L'app è pensata per restare **gratis**: sync ogni 24h, geocoding Nominatim max 15/sync a 1 req/s (policy OSM), sorgenti web con delay 600–800ms e limiti per pagina; le API key (Ticketmaster/Eventbrite/Bandsintown) usano i tier free. La mappa usa tile OSM raster (cache lato browser).
+
 ## Avvio
 
 ```bash
@@ -85,8 +89,8 @@ npm test               # test unitari e API (node:test, DB in-memory, fetch mock
 | `WEB_DIST` | `web/dist` | Cartella della build web |
 | `SYNC_ON_START` | `1` | Sync all'avvio (`0` per disabilitare) |
 | `SYNC_GEOCODE` | `1` | Geocoding durante la sync (`0` per disabilitare) |
-| `SYNC_MAX_GEOCODE` | `200` | Massimo indirizzi geocodificati per sync |
-| `SYNC_INTERVAL_MS` | `21600000` | Intervallo sync periodica (6h) |
+| `SYNC_MAX_GEOCODE` | `15` | Massimo indirizzi geocodificati per sync (Nominatim 1 req/s → 15/sync = ~0 costo) |
+| `SYNC_INTERVAL_MS` | `86400000` | Intervallo sync periodica (24h — per stare nei limiti gratuiti) |
 | `TICKETMASTER_API_KEY` | — | API key gratuita Ticketmaster Discovery (opzionale) |
 | `EVENTBRITE_TOKEN` | — | Token personale Eventbrite (opzionale) |
 | `BANDSINTWN_APP_ID` | — | API key Bandsintown (da artist.bandsintown.com → Settings → Get API Key). L'API è **artist-only**: il connettore interroga `/artists/{nome}/events` |

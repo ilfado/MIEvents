@@ -6,7 +6,6 @@ import { extractJsonLdEvents, ldToDraft } from "../core/jsonld.js";
 import { parseRssItems } from "../core/rss.js";
 import { pinForVenue } from "../core/venue-pins.js";
 import { ftsQuery } from "../adapters/outbound/repositories/sqlite.js";
-import { pinForVenue } from "../core/venue-pins.js";
 
 test("pinForVenue: dizionario venue noti, match nome/indirizzo normalizzato", () => {
   const alca = pinForVenue("Alcatraz Milano");

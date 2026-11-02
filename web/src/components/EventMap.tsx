@@ -87,7 +87,13 @@ export function EventMap({
       attributionControl: { compact: true },
     });
     mapRef.current = map;
-    map.on("load", () => setReady(true));
+    map.on("load", () => {
+      setReady(true);
+      map.resize();
+    });
+    requestAnimationFrame(() => map.resize());
+    const ro = new ResizeObserver(() => map.resize());
+    if (containerRef.current) ro.observe(containerRef.current);
     map.on("moveend", () => {
       const b = map.getBounds();
       onBbox(`${b.getSouth()},${b.getWest()},${b.getNorth()},${b.getEast()}`);
@@ -95,6 +101,7 @@ export function EventMap({
     const b = map.getBounds();
     onBbox(`${b.getSouth()},${b.getWest()},${b.getNorth()},${b.getEast()}`);
     return () => {
+      ro.disconnect();
       map.remove();
       mapRef.current = null;
     };
