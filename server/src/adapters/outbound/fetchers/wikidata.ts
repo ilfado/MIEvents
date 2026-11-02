@@ -1,6 +1,6 @@
 import type { EventSource } from "../../../application/ports.js";
 import type { SourceResult } from "../../../core/types.js";
-import { getJson } from "./http.js";
+import { getJsonRetryable as getJson } from "./http.js";
 
 const ENDPOINT = "https://qlever.dev/api/wikidata";
 
