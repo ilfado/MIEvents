@@ -31,7 +31,7 @@ export default function App() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetchEvents({ ...f, bbox: filterByArea ? bboxRef.current : undefined });
+      const res = await fetchEvents({ ...f, bbox: filterByArea ? bboxRef.current : undefined, geoOnly: view === "map" });
       setEvents((prev) => (append ? [...prev, ...res.events] : res.events));
       setTotal(res.total);
     } catch (e) {
