@@ -1,5 +1,5 @@
-const CACHE = "mievents-v7";
-const APP_SHELL = ["/", "/index.html", "/manifest.webmanifest", "/icon.svg", "/logo-512.png"];
+const CACHE = "mievents-v8";
+const APP_SHELL = ["/", "/index.html", "/manifest.webmanifest", "/icon.svg", "/logo-512.png", "/icon-192.png", "/icon-512.png"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
