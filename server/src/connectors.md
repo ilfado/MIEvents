@@ -16,7 +16,10 @@ Ogni connettore è un `EventSource` in `server/src/adapters/outbound/fetchers/` 
 | **Santeria Milano** | `santeria.milano.it/wp-json/wp/v2/eventi` | WP REST JSON (data estratta dal testo) | eventi club |
 | **RSS testate** (ViviMilano spettacoli, MilanoEvents, Eventi@Milano concerti) | feed RSS pubblici | RSS → filtro keyword evento + area MI + data da testo/pubDate | normalizzati in `events` |
 
-## Connettori con API key gratuita (attivabili via env, MAI in chat/codice)
+## Ticketmaster — formato date richiesto
+`startDateTime`/`endDateTime` devono essere `YYYY-MM-DDTHH:mm:ssZ` (no millisecondi, con Z), `sort` solo `date,asc` etc. (no `date,asc` con virgola+spazio).
+
+## Connettori con API key gratuite (attivabili via env, MAI in chat/codice)
 
 | Servizio | Env var | Come obtenirla |
 | --- | --- | --- |

@@ -76,11 +76,13 @@ export function ticketingSources(env: NodeJS.ProcessEnv): EventSource[] {
     sources.push({
       id: "ticketmaster",
       async run(ctx: SourceContext): Promise<SourceResult> {
-        const from = new Date().toISOString();
+        const fmt = (d: Date) => d.toISOString().replace(/\.\d{3}Z$/, "Z");
+        const from = fmt(new Date());
+        const end = fmt(new Date(`${ctx.toDate}T23:59:59Z`));
         const url =
           `https://app.ticketmaster.com/discovery/v2/events.json?apikey=${encodeURIComponent(apiKey)}` +
           `&latLong=45.4642,9.19&radius=60&unit=km&classificationName=music,arts&family` +
-          `&startDateTime=${encodeURIComponent(from)}&endDateTime=${encodeURIComponent(ctx.toDate + "T23:59:59")}&size=${ctx.limits["ticketmasterSize"] ?? 100}&sort=date,asc`;
+          `&startDateTime=${encodeURIComponent(from)}&endDateTime=${encodeURIComponent(end)}&size=${ctx.limits["ticketmasterSize"] ?? 100}&sort=date,asc`;
         const json = (await getJson(ctx.fetchImpl, url)) as { _embedded?: { events?: Array<Record<string, any>> } };
         const events: EventDraft[] = [];
         for (const e of json._embedded?.events ?? []) {
@@ -114,7 +116,7 @@ export function ticketingSources(env: NodeJS.ProcessEnv): EventSource[] {
     });
   }
 
-  if (keys.eventbrite) {
+  if (keys.eventbrite && env.EVENTBRITE_SEARCH === "1") {
     const token = keys.eventbrite;
     sources.push({
       id: "eventbrite",
