@@ -157,10 +157,13 @@ export async function runSync(deps: SyncDeps, opts: SyncOptions = {}): Promise<S
   };
 
   for (const source of sources) {
+    const t0 = Date.now();
     try {
       const result: SourceResult = await source.run(ctx);
+      console.log(`[sync] ${source.id}: ok ${result.events.length} eventi in ${Date.now() - t0}ms`);
       await persist(result.events);
     } catch (err) {
+      console.log(`[sync] ${source.id}: ERRORE ${(err as Error).message}`);
       errors.push(`${source.id}: ${(err as Error).message}`);
     }
   }
