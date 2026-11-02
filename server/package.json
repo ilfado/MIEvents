@@ -6,8 +6,8 @@
   "main": "dist/main.js",
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "start": "node dist/server.js",
-    "dev": "tsc -p tsconfig.json --watch & node --watch dist/server.js",
+    "start": "node dist/main.js",
+    "dev": "tsc -p tsconfig.json --watch & node --watch dist/main.js",
     "test": "tsc -p tsconfig.json && node --test \"dist/test/*.test.js\""
   },
   "dependencies": {
