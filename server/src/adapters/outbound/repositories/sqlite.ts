@@ -242,7 +242,7 @@ export function createEventRepository(db: DatabaseSync): EventRepository {
       if (!f.all && !f.includePast) {
         clauses.push("date(COALESCE(end, start)) >= date('now', 'localtime')");
         clauses.push("date(start) <= date('now', 'localtime', '+15 days')");
-        if (!f.from && !f.to) clauses.push("lat IS NOT NULL AND lon IS NOT NULL");
+        clauses.push("lat IS NOT NULL AND lon IS NOT NULL");
       }
       if (f.bbox) {
         const b = parseBbox(f.bbox);

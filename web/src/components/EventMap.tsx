@@ -56,6 +56,20 @@ function cluster(events: MiEvent[], zoom: number): Array<Cluster | { single: MiE
   return [...map.values()].map((c) => (c.events.length === 1 ? { single: c.events[0] } : c));
 }
 
+const tileCache = new Map<string, HTMLImageElement>();
+
+function loadTile(z: number, x: number, y: number): HTMLImageElement | null {
+  const key = `${z}/${x}/${y}`;
+  const cached = tileCache.get(key);
+  if (cached !== undefined) return cached;
+  if (tileCache.size > 400) tileCache.clear();
+  const img = new Image();
+  img.crossOrigin = "anonymous";
+  img.src = `https://tile.openstreetmap.org/${z}/${x}/${y}.png`;
+  tileCache.set(key, img);
+  return img;
+}
+
 export function EventMap({
   events,
   selectedId,
@@ -63,6 +77,8 @@ export function EventMap({
   onBbox,
   filterByArea,
   onToggleArea,
+  showStreets,
+  onToggleStreets,
 }: {
   events: MiEvent[];
   selectedId: string | null;
@@ -70,11 +86,14 @@ export function EventMap({
   onBbox: (bbox: string) => void;
   filterByArea: boolean;
   onToggleArea: () => void;
+  showStreets: boolean;
+  onToggleStreets: () => void;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
   const [view, setView] = useState({ lat: MILAN.lat, lon: MILAN.lon, zoom: 11 });
   const [popup, setPopup] = useState<{ x: number; y: number; event: MiEvent } | { x: number; y: number; cluster: Cluster } | null>(null);
+  const [tilesVersion, setTilesVersion] = useState(0);
   const dragRef = useRef<{ sx: number; sy: number; cx: number; cy: number; clat: number; clon: number; moved: boolean } | null>(null);
 
   const selected = events.find((e) => e.id === selectedId);
@@ -124,6 +143,38 @@ export function EventMap({
     ctx.fillStyle = "#f2f0ea";
     ctx.fillRect(0, 0, w, h);
 
+    const center = project(view.lat, view.lon, view.zoom);
+    const z = Math.round(view.zoom);
+    const scale = 256 * 2 ** z;
+    const cx = ((view.lon + 180) / 360) * scale;
+    const cy = center.y;
+
+    if (showStreets) {
+      const x0 = Math.floor((cx - w / 2) / 256);
+      const x1 = Math.floor((cx + w / 2) / 256);
+      const y0 = Math.floor((cy - h / 2) / 256);
+      const y1 = Math.floor((cy + h / 2) / 256);
+      for (let tx = x0; tx <= x1; tx++) {
+        for (let ty = y0; ty <= y1; ty++) {
+          if (ty < 0 || ty >= 2 ** z) continue;
+          const img = loadTile(z, ((tx % 2 ** z) + 2 ** z) % 2 ** z, ty);
+          if (!img) continue;
+          const dx = tx * 256 - cx + w / 2;
+          const dy = ty * 256 - cy + h / 2;
+          if (img.complete && img.naturalWidth > 0) {
+            ctx.save();
+            ctx.globalAlpha = 0.9;
+            ctx.filter = "grayscale(1) contrast(1.05) brightness(1.02)";
+            ctx.imageSmoothingEnabled = view.zoom % 1 !== 0;
+            ctx.drawImage(img, dx, dy, 256 * 2 ** (view.zoom - z), 256 * 2 ** (view.zoom - z));
+            ctx.restore();
+          } else {
+            img.onload = () => setTilesVersion((v) => v + 1);
+          }
+        }
+      }
+    }
+
     const grid = 64;
     ctx.strokeStyle = "#e3e0d8";
     ctx.lineWidth = 1;
@@ -140,7 +191,6 @@ export function EventMap({
       ctx.stroke();
     }
 
-    const center = project(view.lat, view.lon, view.zoom);
     for (const c of clusters) {
       const lat = "single" in c ? (c.single.lat as number) : c.lat;
       const lon = "single" in c ? (c.single.lon as number) : c.lon;
@@ -175,7 +225,7 @@ export function EventMap({
         ctx.fillText(String(c.events.length), x, y + 1);
       }
     }
-  }, [clusters, view, selectedId]);
+  }, [clusters, view, selectedId, showStreets, tilesVersion]);
 
   useEffect(() => {
     draw();
@@ -286,6 +336,14 @@ export function EventMap({
           onClick={onToggleArea}
         >
           {filterByArea ? "■ area: on" : "□ area: off"}
+        </button>
+        <button
+          type="button"
+          className={`map-toggle ${showStreets ? "on" : ""}`}
+          aria-pressed={showStreets}
+          onClick={onToggleStreets}
+        >
+          {showStreets ? "■ strade: on" : "□ strade: off"}
         </button>
       </div>
       <canvas
