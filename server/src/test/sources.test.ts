@@ -107,12 +107,14 @@ test("tribe source maps TEC events and filters window", async () => {
   assert.equal(brunch.end, "2026-11-02");
   assert.equal(brunch.timeStart, "12:00");
   assert.equal(brunch.timeEnd, "14:30");
-  assert.equal(brunch.venue, "bistroBASE");
-  assert.equal(brunch.address, "V. Ambrogio Bergognone da Fossano, 40, 20144, Milano, MI");
+  assert.equal(brunch.venue, "BASE Milano");
+  assert.equal(brunch.address, "Via Tortona 40, 20144 Milano");
   assert.equal(brunch.city, "MILANO");
+  assert.equal(brunch.lat, 45.4509);
+  assert.equal(brunch.lon, 9.1587);
   assert.equal(brunch.sourceId, "tribe-base");
   const show = res.events.find((e) => e.title === "La notte ha la forma del grido di un lupo")!;
-  assert.equal(show.venue, "ROOM 2100");
+  assert.equal(show.venue, "BASE Milano");
   assert.equal(show.organizer, "BASE");
 });
 

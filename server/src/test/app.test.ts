@@ -103,6 +103,29 @@ test("fts search, filters, saved toggle", async () => {
   assert.ok(!events.setSaved("missing", true));
 });
 
+test("pinned source: no geocode consumed, venue persisted with coords", async () => {
+  const db = openDb(":memory:");
+  const events = createEventRepository(db);
+  const venues = createVenueRepository(db);
+  const geocoder = mockGeocoder();
+  const pinned = { ...DRAFT, sourceId: "tribe-base", sourceName: "BASE Milano", venue: "BASE Milano", address: "Via Tortona 40, 20144 Milano", city: "MILANO", lat: 45.4509, lon: 9.1587, url: "https://base.milano.it/event/x/" };
+  const src = testSource([pinned, { ...pinned, title: "EVENTO 2 STESSA LOCATION", url: "https://base.milano.it/event/y/", lat: 45.4509, lon: 9.1587 }], "tribe-base");
+  const res = await runSync({ events, venues, geocoder, extraSources: [src] }, { geocode: true, geocodeSleepMs: 0, env: {} });
+  assert.equal(res.errors.length, 0);
+  assert.equal(res.inserted, 2);
+  assert.equal(res.geocoded, 0);
+  assert.equal(geocoder.calls.length, 0);
+  const all = events.listEvents({ all: true });
+  assert.ok(all.events.every((e) => e.lat === 45.4509 && e.lon === 9.1587 && e.venue === "BASE Milano"));
+  const c = venues.coordsFor("BASE Milano", null);
+  assert.equal(c?.lat, 45.4509);
+  assert.equal(c?.lon, 9.1587);
+  const vlist = venues.listVenues() as { name: string; lat: number | null; lon: number | null }[];
+  assert.equal(vlist.length, 1);
+  assert.equal(vlist[0].name, "BASE Milano");
+  assert.equal(vlist[0].lat, 45.4509);
+});
+
 test("venueId stable + coordsFor reuse", () => {
   const db = openDb(":memory:");
   const venues = createVenueRepository(db);

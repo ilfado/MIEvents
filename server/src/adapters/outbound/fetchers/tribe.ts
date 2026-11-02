@@ -32,7 +32,15 @@ interface TribeResponse {
   total_pages?: number;
 }
 
-function tribeSource(opts: { baseUrl: string; sourceName: string; sourceId: string }): EventSource {
+interface VenuePin {
+  venue: string;
+  address: string;
+  city: string;
+  lat: number;
+  lon: number;
+}
+
+function tribeSource(opts: { baseUrl: string; sourceName: string; sourceId: string; pin?: VenuePin }): EventSource {
   return {
     id: opts.sourceId,
     async run(ctx: SourceContext): Promise<SourceResult> {
@@ -50,6 +58,13 @@ function tribeSource(opts: { baseUrl: string; sourceName: string; sourceId: stri
         for (const ev of rows) {
           const draft = toDraft(ev, opts);
           if (!draft) continue;
+          if (opts.pin) {
+            draft.venue = opts.pin.venue;
+            draft.address = opts.pin.address;
+            draft.city = opts.pin.city;
+            draft.lat = opts.pin.lat;
+            draft.lon = opts.pin.lon;
+          }
           if (draft.start < ctx.fromDate || draft.start > ctx.toDate) continue;
           if (seen.has(draft.url)) continue;
           seen.add(draft.url);
@@ -93,6 +108,13 @@ export const tribeBaseSource = tribeSource({
   baseUrl: "https://base.milano.it",
   sourceName: "BASE Milano",
   sourceId: "tribe-base",
+  pin: {
+    venue: "BASE Milano",
+    address: "Via Tortona 40, 20144 Milano",
+    city: "MILANO",
+    lat: 45.4509,
+    lon: 9.1587,
+  },
 });
 
 export const tribeMagazziniSource = tribeSource({
