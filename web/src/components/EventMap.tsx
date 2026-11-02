@@ -94,7 +94,9 @@ export function EventMap({
   const [view, setView] = useState({ lat: MILAN.lat, lon: MILAN.lon, zoom: 11 });
   const [popup, setPopup] = useState<{ x: number; y: number; event: MiEvent } | { x: number; y: number; cluster: Cluster } | null>(null);
   const [tilesVersion, setTilesVersion] = useState(0);
-  const dragRef = useRef<{ sx: number; sy: number; cx: number; cy: number; clat: number; clon: number; moved: boolean } | null>(null);
+  const dragRef = useRef<{ sx: number; sy: number; clat: number; clon: number; moved: boolean } | null>(null);
+  const pointersRef = useRef<Map<number, { x: number; y: number }>>(new Map());
+  const pinchRef = useRef<{ d0: number; zoom0: number; clat: number; clon: number } | null>(null);
 
   const selected = events.find((e) => e.id === selectedId);
   useEffect(() => {
@@ -259,22 +261,46 @@ export function EventMap({
 
   const onPointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
     const rect = e.currentTarget.getBoundingClientRect();
-    dragRef.current = {
-      sx: e.clientX,
-      sy: e.clientY,
-      cx: rect.width / 2,
-      cy: rect.height / 2,
-      clat: view.lat,
-      clon: view.lon,
-      moved: false,
-    };
     e.currentTarget.setPointerCapture(e.pointerId);
+    pointersRef.current.set(e.pointerId, { x: e.clientX - rect.left, y: e.clientY - rect.top });
+    if (pointersRef.current.size === 2) {
+      const [a, b] = [...pointersRef.current.values()];
+      const d0 = Math.hypot(a.x - b.x, a.y - b.y);
+      pinchRef.current = { d0, zoom0: view.zoom, clat: view.lat, clon: view.lon };
+      dragRef.current = null;
+      return;
+    }
+    if (pointersRef.current.size === 1) {
+      dragRef.current = { sx: e.clientX, sy: e.clientY, clat: view.lat, clon: view.lon, moved: false };
+    }
   };
 
   const onPointerMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    if (!pointersRef.current.has(e.pointerId)) return;
+    pointersRef.current.set(e.pointerId, { x: e.clientX - rect.left, y: e.clientY - rect.top });
+
+    if (pointersRef.current.size === 2 && pinchRef.current) {
+      const [a, b] = [...pointersRef.current.values()];
+      const d = Math.hypot(a.x - b.x, a.y - b.y);
+      const pinch = pinchRef.current;
+      if (d < 10) return;
+      const zoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, pinch.zoom0 + Math.log2(d / pinch.d0)));
+      const midX = (a.x + b.x) / 2;
+      const midY = (a.y + b.y) / 2;
+      setView((v) => {
+        const center = project(pinch.clat, pinch.clon, pinch.zoom0);
+        const scale = 2 ** (zoom - pinch.zoom0);
+        const px = center.x + (midX - rect.width / 2) * (1 - 1 / scale);
+        const py = center.y + (midY - rect.height / 2) * (1 - 1 / scale);
+        const geo = unproject(px, py, zoom);
+        return { lat: geo.lat, lon: geo.lon, zoom };
+      });
+      return;
+    }
+
     const drag = dragRef.current;
     if (!drag) return;
-    const rect = e.currentTarget.getBoundingClientRect();
     const dx = e.clientX - drag.sx;
     const dy = e.clientY - drag.sy;
     if (Math.abs(dx) + Math.abs(dy) > 4) drag.moved = true;
@@ -285,7 +311,19 @@ export function EventMap({
   };
 
   const onPointerUp = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    const wasPinch = pinchRef.current !== null && pointersRef.current.size >= 2;
+    pointersRef.current.delete(e.pointerId);
+    if (pointersRef.current.size < 2) pinchRef.current = null;
+    if (pointersRef.current.size === 1) {
+      const [p] = [...pointersRef.current.entries()];
+      dragRef.current = { sx: e.clientX + (p[1].x - (e.clientX - e.currentTarget.getBoundingClientRect().left)), sy: e.clientY, clat: view.lat, clon: view.lon, moved: true };
+      dragRef.current = null;
+    }
     const drag = dragRef.current;
+    if (wasPinch) {
+      dragRef.current = null;
+      return;
+    }
     dragRef.current = null;
     if (!drag || drag.moved) return;
     const rect = e.currentTarget.getBoundingClientRect();
