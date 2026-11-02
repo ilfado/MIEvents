@@ -5,10 +5,10 @@ import { getJson } from "./http.js";
 
 const UA = "MIEvents/0.1 (https://github.com/ilfado/MIEvents)";
 
-export function apiKeysFromEnv(env: NodeJS.ProcessEnv): { ticketmaster?: string; eventbrite?: string; bandsintown?: string } {
+export function apiKeysFromEnv(env: NodeJS.ProcessEnv): { ticketmaster?: string; eventbriteUser?: string; bandsintown?: string } {
   return {
     ticketmaster: env.TICKETMASTER_API_KEY?.trim() || undefined,
-    eventbrite: env.EVENTBRITE_TOKEN?.trim() || undefined,
+    eventbriteUser: env.EVENTBRITE_USER_TOKEN?.trim() || undefined,
     bandsintown: env.BANDSINTWN_APP_ID?.trim() || undefined,
   };
 }
@@ -116,8 +116,8 @@ export function ticketingSources(env: NodeJS.ProcessEnv): EventSource[] {
     });
   }
 
-  if (keys.eventbrite && env.EVENTBRITE_SEARCH === "1") {
-    const token = keys.eventbrite;
+  if (keys.eventbriteUser && env.EVENTBRITE_SEARCH === "1") {
+    const token = keys.eventbriteUser;
     sources.push({
       id: "eventbrite",
       async run(ctx: SourceContext): Promise<SourceResult> {

@@ -24,7 +24,7 @@ Ogni connettore è un `EventSource` in `server/src/adapters/outbound/fetchers/` 
 | Servizio | Env var | Come obtenirla |
 | --- | --- | --- |
 | Ticketmaster Discovery | `TICKETMASTER_API_KEY` | developer.ticketmaster.com → New App → "Discovery API" key istantanea |
-| Eventbrite | `EVENTBRITE_TOKEN` | eventbrite.com → Account → App Keys → crea app → token personale |
+| Eventbrite | `EVENTBRITE_USER_TOKEN` + `EVENTBRITE_SEARCH=1` | user OAuth token (flusso code+consenso, scope public) — NON la private/api key |
 | Bandsintown | `BANDSINTWN_APP_ID` + opz. `BANDSINTWN_ARTISTS` | artist.bandsintown.com → Settings → General → **Get API Key** |
 
 ### Bandsintown — nota importante (API artist-only)
@@ -79,9 +79,9 @@ categoria, intervallo date, bounding box, salvati.
 - **API pubblica**: `GET https://www.eventbriteapi.com/v3/events/search/` richiede **token OAuth personale**;
   senza token risponde 404. La ricerca pubblica è stata ritirata da Eventbrite.
 - **Pagine HTML** (`eventbrite.com/d/italy--milano/...`) répondent 405 a fetch non-browser (anti-bot).
-- **Decisione**: non scraping di pagine anti-bot (viola ToS e fragile). Da attivare solo con `EVENTBRITE_TOKEN` in env:
+- **Decisione**: non scraping di pagine anti-bot (viola ToS e fragile). Da attivare solo con `EVENTBRITE_USER_TOKEN` in env:
   il connettore è predisposto (`location.address=Milano, location.within=50km, start_date.range_start`).
-- Per abilitarlo: imposta `EVENTBRITE_TOKEN` e aggiungi il connettore in `connectors.ts`.
+- Per abilitarlo: imposta `EVENTBRITE_USER_TOKEN` (+ `EVENTBRITE_SEARCH=1`).
 
 ## 4. ArciBellezza (NON RAGGIUNGIBILE — documentato)
 - `https://arcibellezza.it/eventi/` e `/feed/` e `/wp-json/...` rispondono **202 con challenge
