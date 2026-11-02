@@ -36,7 +36,7 @@ export const lombardiaAreaPubblicaSource: EventSource = {
   id: "lombardia-area-pubblica",
   async run(ctx): Promise<SourceResult> {
     const events: SourceResult["events"] = [];
-    const where = `upper(prov) = 'MI' AND data_in >= '${ctx.fromDate}' AND denom IS NOT NULL`;
+    const where = `upper(prov) = 'MI' AND data_in >= '${ctx.fromDate}' AND data_in <= '${ctx.toDate}' AND denom IS NOT NULL`;
     for (let offset = 0; ; offset += PAGE) {
       const url = `${SAGRE_AREA_PUBBLICA_RESOURCE_URL}?$query=${encodeURIComponent(
         `SELECT * WHERE ${where} ORDER BY data_in LIMIT ${PAGE} OFFSET ${offset}`,

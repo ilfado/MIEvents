@@ -110,6 +110,33 @@ export function createServer(deps: { db: DatabaseSync; webDist: string; events?:
         return sendJson(res, 200, events.getEvent(id));
       }
 
+      if (route === "GET /api/debug/source" && process.env.DEBUG_SOURCES === "1") {
+        const name = url.searchParams.get("source") ?? "";
+        const { defaultSources } = await import("../../../application/services/sync.js");
+        const src = defaultSources(process.env).find((s) => s.id === name);
+        if (!src) return sendJson(res, 404, { error: "unknown source", available: defaultSources(process.env).map((s) => s.id) });
+        const ctx = {
+          fetchImpl: fetch,
+          fromDate: new Date().toISOString().slice(0, 10),
+          toDate: new Date(Date.now() + 15 * 86400000).toISOString().slice(0, 10),
+          geocode: false,
+          geocodeSleepMs: 0,
+          maxGeocode: 0,
+          limits: { bitArtists: 3, ticketmasterSize: 5 },
+          env: process.env,
+          venues,
+          geocoder: { async geocode() { return null; } },
+          now: () => new Date().toISOString(),
+        };
+        const t0 = Date.now();
+        try {
+          const result = await src.run(ctx as never);
+          return sendJson(res, 200, { source: name, ok: true, events: result.events.length, ms: Date.now() - t0, sample: result.events.slice(0, 3) });
+        } catch (err) {
+          return sendJson(res, 200, { source: name, ok: false, error: (err as Error).message, ms: Date.now() - t0 });
+        }
+      }
+
       if (route === "POST /api/sync") {
         const result = await runSync(
           { events, venues, geocoder: createNominatimGeocoder() },
