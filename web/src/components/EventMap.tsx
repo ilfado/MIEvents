@@ -90,6 +90,7 @@ export function EventMap({
     map.on("load", () => {
       setReady(true);
       map.resize();
+      map.setLayoutProperty("osm", "visibility", showStreets ? "visible" : "none");
     });
     requestAnimationFrame(() => map.resize());
     const ro = new ResizeObserver(() => map.resize());
@@ -110,7 +111,7 @@ export function EventMap({
 
   useEffect(() => {
     const map = mapRef.current;
-    if (!map) return;
+    if (!map || !ready || !map.isStyleLoaded()) return;
     map.setLayoutProperty("osm", "visibility", showStreets ? "visible" : "none");
   }, [showStreets, ready]);
 

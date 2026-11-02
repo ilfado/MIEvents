@@ -1,4 +1,4 @@
-const CACHE = "mievents-v5";
+const CACHE = "mievents-v6";
 const APP_SHELL = ["/", "/index.html", "/manifest.webmanifest", "/icon.svg"];
 
 self.addEventListener("install", (event) => {
