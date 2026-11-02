@@ -92,7 +92,8 @@ npm test               # test unitari e API (node:test, DB in-memory, fetch mock
 | `SYNC_MAX_GEOCODE` | `15` | Massimo indirizzi geocodificati per sync (Nominatim 1 req/s → 15/sync = ~0 costo) |
 | `SYNC_INTERVAL_MS` | `43200000` | Intervallo sync periodica (12h — per stare nei limiti gratuiti) |
 | `TICKETMASTER_API_KEY` | — | API key gratuita Ticketmaster Discovery (opzionale) |
-| `EVENTBRITE_TOKEN` | — | Token personale Eventbrite (opzionale) |
+| `EVENTBRITE_TOKEN` | — | Token Eventbrite: serve **user OAuth token** (flusso code+consenso, scope public), non basta il private token |
+| `EVENTBRITE_SEARCH` | `0` | `1` solo se hai user token valido: abilita il connettore search (di default spento) |
 | `BANDSINTWN_APP_ID` | — | API key Bandsintown (da artist.bandsintown.com → Settings → Get API Key). L'API è **artist-only**: il connettore interroga `/artists/{nome}/events` |
 | `BANDSINTWN_ARTISTS` | lista default di ~50 artisti italiani | Elenco artisti separati da virgola per Bandsintown (max 25/sync); gli eventi vengono filtrati per provincia di Milano via coordinate |
 
