@@ -95,8 +95,8 @@ export default function App() {
   return (
     <div className="app">
       <header className="header">
-        <h1>MIEvents</h1>
-        <p className="subtitle">Eventi Milano + provincia — lista & mappa</p>
+        <h1><img src="/logo-512.png" alt="" className="logo" /> MIEvents</h1>
+        <p className="subtitle">Eventi delle prossime 2 settimane a Milano + provincia</p>
         <nav className="view-switch" role="tablist">
           <button type="button" role="tab" aria-selected={view === "list"} className={view === "list" ? "active" : ""} onClick={() => setView("list")}>
             Lista

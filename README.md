@@ -40,7 +40,7 @@ I locali sono indicizzati in `venues(id, name, address, city, lat, lon)`: ogni e
 
 ## Limiti e costi (free tier)
 
-L'app è pensata per restare **gratis**: sync ogni 24h, geocoding Nominatim max 15/sync a 1 req/s (policy OSM), sorgenti web con delay 600–800ms e limiti per pagina; le API key (Ticketmaster/Eventbrite/Bandsintown) usano i tier free. La mappa usa tile OSM raster (cache lato browser).
+L'app è pensata per restare **gratis**: sync ogni 12h, geocoding Nominatim max 15/sync a 1 req/s (policy OSM), sorgenti web con delay 600–800ms e limiti per pagina; le API key (Ticketmaster/Eventbrite/Bandsintown) usano i tier free. La mappa usa tile OSM raster (cache lato browser).
 
 ## Avvio
 
@@ -90,7 +90,7 @@ npm test               # test unitari e API (node:test, DB in-memory, fetch mock
 | `SYNC_ON_START` | `1` | Sync all'avvio (`0` per disabilitare) |
 | `SYNC_GEOCODE` | `1` | Geocoding durante la sync (`0` per disabilitare) |
 | `SYNC_MAX_GEOCODE` | `15` | Massimo indirizzi geocodificati per sync (Nominatim 1 req/s → 15/sync = ~0 costo) |
-| `SYNC_INTERVAL_MS` | `86400000` | Intervallo sync periodica (24h — per stare nei limiti gratuiti) |
+| `SYNC_INTERVAL_MS` | `43200000` | Intervallo sync periodica (12h — per stare nei limiti gratuiti) |
 | `TICKETMASTER_API_KEY` | — | API key gratuita Ticketmaster Discovery (opzionale) |
 | `EVENTBRITE_TOKEN` | — | Token personale Eventbrite (opzionale) |
 | `BANDSINTWN_APP_ID` | — | API key Bandsintown (da artist.bandsintown.com → Settings → Get API Key). L'API è **artist-only**: il connettore interroga `/artists/{nome}/events` |
