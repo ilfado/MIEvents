@@ -79,7 +79,8 @@ export function ticketingSources(env: NodeJS.ProcessEnv): EventSource[] {
         const from = new Date().toISOString();
         const url =
           `https://app.ticketmaster.com/discovery/v2/events.json?apikey=${encodeURIComponent(apiKey)}` +
-          `&latLong=45.4642,9.19&radius=50&unit=km&classificationName=music,arts&startDateTime=${encodeURIComponent(from)}&size=${ctx.limits["ticketmasterSize"] ?? 100}&sort=date,asc`;
+          `&latLong=45.4642,9.19&radius=60&unit=km&classificationName=music,arts&family` +
+          `&startDateTime=${encodeURIComponent(from)}&endDateTime=${encodeURIComponent(ctx.toDate + "T23:59:59")}&size=${ctx.limits["ticketmasterSize"] ?? 100}&sort=date,asc`;
         const json = (await getJson(ctx.fetchImpl, url)) as { _embedded?: { events?: Array<Record<string, any>> } };
         const events: EventDraft[] = [];
         for (const e of json._embedded?.events ?? []) {
@@ -119,9 +120,11 @@ export function ticketingSources(env: NodeJS.ProcessEnv): EventSource[] {
       id: "eventbrite",
       async run(ctx: SourceContext): Promise<SourceResult> {
         const from = new Date().toISOString();
+        const to = `${ctx.toDate}T23:59:59Z`;
         const url =
           `https://www.eventbriteapi.com/v3/events/search/?location.address=Milano,Italy&location.within=50km` +
-          `&start_date.range_start=${encodeURIComponent(from)}&expand=venue&page_size=50`;
+          `&start_date.range_start=${encodeURIComponent(from)}&start_date.range_end=${encodeURIComponent(to)}` +
+          `&expand=venue&page_size=100&order_by=start_asc`;
         const json = (await getJson(ctx.fetchImpl, url, { Authorization: `Bearer ${token}` })) as { events?: Array<Record<string, any>> };
         const events: EventDraft[] = [];
         for (const e of json.events ?? []) {
@@ -131,7 +134,9 @@ export function ticketingSources(env: NodeJS.ProcessEnv): EventSource[] {
           const venue = e.venue as Record<string, any> | undefined;
           const lat = venue?.latitude ? Number(venue.latitude) : null;
           const lon = venue?.longitude ? Number(venue.longitude) : null;
-          if (lat !== null && lon !== null && !inMilanoProvince(lat, lon)) continue;
+          const hasCoords = lat !== null && lon !== null && Number.isFinite(lat) && Number.isFinite(lon);
+          if (hasCoords && !inMilanoProvince(lat, lon)) continue;
+          if (start.slice(0, 10) > ctx.toDate) continue;
           events.push({
             sourceId: "eventbrite",
             sourceName: "Eventbrite",

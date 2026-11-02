@@ -32,7 +32,8 @@ I locali sono indicizzati in `venues(id, name, address, city, lat, lon)`: ogni e
 ## Stack
 
 - **Server**: Node.js ≥ 22 (zero dipendenze runtime: `node:http` + `node:sqlite` + `fetch`), TypeScript.
-- **Web**: React 19 + Vite + react-leaflet con mappa caricata in **lazy-loading** (chunk separato, ~46 kB gzip), servita in produzione dallo stesso server (SPA fallback). Bundle iniziale ~72 kB gzip.
+- **Web**: React 19 + Vite, **zero librerie di mappa** (canvas custom pixel con pan/zoom liberi, marker quadrati, clustering, popup — niente lock di Leaflet), mappa in lazy chunk (~2.6 kB gzip), servita in produzione dallo stesso server. Bundle iniziale ~73 kB gzip.
+- **Finestra temporale default**: la vista principale mostra solo eventi **da oggi a +15 giorni e con geolocalizzazione**; `?all=1` (o `includePast=1`) mostra tutto lo storico. Le sorgenti sincronizzano solo la finestra 15 giorni. Paginazione `limit`/`offset` con pulsante "carica altri".
 - **Dati**: [dati.lombardia.it](https://www.dati.lombardia.it) (CC0), geocoding Nominatim (ODbL), tiles © OpenStreetMap.
 
 ## Avvio

@@ -73,6 +73,9 @@ test("default window = oggi..+15d solo con geo; all=1 mostra tutto", async () =>
   assert.equal(events.listEvents({ all: true }).total, 2);
   assert.equal(events.listEvents({}).total, 1);
   assert.equal(events.listEvents({ from: "2020-01-01", all: true }).total, 2);
+  const ranged = events.listEvents({ from: "2026-11-05", to: "2026-11-07" });
+  assert.equal(ranged.total, 1);
+  assert.ok(ranged.events.every((e) => e.lat != null));
   assert.throws(() => events.listEvents({ from: "2026-02-30" }), /from/);
   assert.throws(() => events.listEvents({ bbox: "bad" }), /bbox/);
 });

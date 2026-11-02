@@ -18,6 +18,7 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [filterByArea, setFilterByArea] = useState(false);
+  const [showStreets, setShowStreets] = useState(true);
   const bboxRef = useRef<string | undefined>(undefined);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
@@ -160,6 +161,8 @@ export default function App() {
               onBbox={onBbox}
               filterByArea={filterByArea}
               onToggleArea={onToggleArea}
+              showStreets={showStreets}
+              onToggleStreets={() => setShowStreets((v) => !v)}
             />
           </Suspense>
           {selected && (
