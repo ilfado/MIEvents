@@ -4,6 +4,7 @@ import { categorize } from "../core/categorize.js";
 import { stripHtml, parseDateOnly, parseDateTime, extractDateFromText, inMilanoProvince, extractLinks, todayIso } from "../core/text.js";
 import { extractJsonLdEvents, ldToDraft } from "../core/jsonld.js";
 import { parseRssItems } from "../core/rss.js";
+import { pinForVenue } from "../core/venue-pins.js";
 import { ftsQuery } from "../adapters/outbound/repositories/sqlite.js";
 
 test("categorize detects categories", () => {
@@ -29,6 +30,19 @@ test("text utils", () => {
   assert.ok(inMilanoProvince(45.46, 9.19));
   assert.ok(!inMilanoProvince(41.9, 12.5));
   assert.equal(todayIso(new Date("2026-11-01T10:00:00Z")), "2026-11-01");
+});
+
+test("pinForVenue matches normalized venue/address names", () => {
+  assert.equal(pinForVenue("BASE Milano")?.lat, 45.4509);
+  assert.equal(pinForVenue("Alcatraz Milano")?.lat, 45.4946);
+  assert.equal(pinForVenue("TEATRO DEGLI ARCIMBOLDI")?.lon, 9.2084);
+  assert.equal(pinForVenue("Magazzini Generali")?.address, "Via Pietrasanta 16, 20141 Milano");
+  assert.equal(pinForVenue("Duomo")?.city, "MILANO");
+  assert.equal(pinForVenue("Basilica di Sant'Eustorgio")?.lat, 45.4537);
+  assert.equal(pinForVenue(null, "Piazza Duomo, Milano")?.lat, 45.4642);
+  assert.equal(pinForVenue("Bar sporting non mappato"), null);
+  assert.equal(pinForVenue(null, "Via Roma 1, nowhere"), null);
+  assert.equal(pinForVenue("database sql meetup"), null);
 });
 
 test("extractLinks resolves and filters", () => {

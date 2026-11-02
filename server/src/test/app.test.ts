@@ -126,6 +126,32 @@ test("pinned source: no geocode consumed, venue persisted with coords", async ()
   assert.equal(vlist[0].lat, 45.4509);
 });
 
+test("known venue pin wins over geocoder and is persisted", async () => {
+  const db = openDb(":memory:");
+  const events = createEventRepository(db);
+  const venues = createVenueRepository(db);
+  const geocoder = mockGeocoder();
+  const duomo = { ...DRAFT, title: "CONCERTO AL DUOMO", venue: "Duomo di Milano", address: "Piazza del Duomo, Milano", city: "MILANO", url: "https://example.org/duomo" };
+  const arcimboldi = { ...DRAFT, title: "SHOW ARCIMBOLDI", venue: "Teatro degli Arcimboldi", address: null, city: "MILANO", url: "https://example.org/tam" };
+  const unknown = { ...DRAFT, title: "EVENTO BAR SCONOSCIUTO", venue: "Bar Pippo", address: "Via inventata 1, Milano", city: "MILANO", url: "https://example.org/bar" };
+  await runSync(
+    { events, venues, geocoder, extraSources: [testSource([duomo, arcimboldi, unknown])] },
+    { geocode: true, geocodeSleepMs: 0, env: {} },
+  );
+  assert.equal(geocoder.calls.length, 1);
+  assert.ok(geocoder.calls[0].includes("inventata"));
+  const all = events.listEvents({ all: true });
+  const byTitle = Object.fromEntries(all.events.map((e) => [e.title, e]));
+  assert.equal(byTitle["CONCERTO AL DUOMO"].lat, 45.4642);
+  assert.equal(byTitle["CONCERTO AL DUOMO"].lon, 9.19);
+  assert.equal(byTitle["SHOW ARCIMBOLDI"].lat, 45.5086);
+  assert.equal(byTitle["EVENTO BAR SCONOSCIUTO"].lat, 45.5741);
+  const c = venues.coordsFor("Duomo di Milano", null);
+  assert.equal(c?.lat, 45.4642);
+  const tam = venues.coordsFor("Teatro degli Arcimboldi", null);
+  assert.equal(tam?.lon, 9.2084);
+});
+
 test("venueId stable + coordsFor reuse", () => {
   const db = openDb(":memory:");
   const venues = createVenueRepository(db);

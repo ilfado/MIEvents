@@ -88,6 +88,10 @@ categoria, intervallo date, bounding box, salvati.
 - Se ArciBellezza espone in futuro un feed iCal/RSS pubblico o una REST API aperta, basta aggiungere
   un `Connector` in `connectors.ts`.
 
+## Geolocalizzazione: pin costanti + tabella `venues`
+
+Prima del geocoder, `sync.ts` applica `pinForVenue()` (`core/venue-pins.ts`): dizionario di venue noti di Milano/provincia con coordinate fisse (BASE, Magazzini Generali, Alcatraz, Fabrique, Santeria, Magnolia/Idroscalo, Leoncavallo, Carroponte, Arcimboldi, Carcano, Franco Parenti, Elfo Puccini, Menotti, Out Off, Zona K, Fabbrica del Vapore, HangarBicocca, Blue Note, Unipol Forum/Dome, Duomo, Sant'Eustorgio, La Scala, Piccolo, Triennale, Castello Sforzesco…). Matching su nome normalizzato (accents/case-insensitive, exact + contenimento per chiavi ≥6 caratteri) e su indirizzo. I pin non consumano budget Nominatim e vengono persistiti in `venues`, così compaiono in `/api/venues` e unificano il marker in mappa. Verificato live: 41 eventi, venue pinnati corretti (Magazzini 7 eventi → 1 pin, Duomo, Sant'Eustorgio, Arcimboldi, Unipol Dome…), restano senza geo solo i venue minori non in dizionario (risolti poi da Nominatim).
+
 ## Geolocalizzazione: tabella `venues`
 
 I locali/location sono indicizzati in una tabella dedicata `venues(id, name, address, city, lat, lon)`:
