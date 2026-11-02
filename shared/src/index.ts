@@ -83,6 +83,10 @@ export const SAGRE_VIEW_ID = "f2tm-32s5";
 
 export const SAGRE_RESOURCE_URL = `https://www.dati.lombardia.it/resource/${SAGRE_VIEW_ID}.json`;
 
+export const SAGRE_AREA_PUBBLICA_VIEW_ID = "hs8z-dcey";
+
+export const SAGRE_AREA_PUBBLICA_RESOURCE_URL = `https://www.dati.lombardia.it/resource/${SAGRE_AREA_PUBBLICA_VIEW_ID}.json`;
+
 export interface SagreRow {
   istat: string | null;
   comune: string | null;
@@ -103,4 +107,26 @@ export interface SagreRow {
   sito_web: string | null;
   url_programma: { url: string | null; description?: string | null } | null;
   nome_org: string | null;
+}
+
+export interface SagreAreaPubblicaRow {
+  denom: string | null;
+  comune: string | null;
+  prov: string | null;
+  tipo: string | null;
+  descriz: string | null;
+  data_in: string | null;
+  ora_in: string | null;
+  data_fine: string | null;
+  ora_fine: string | null;
+  toponimo: string | null;
+  indirizzo: string | null;
+  civico: string | null;
+  cap: string | null;
+  sito_web: string | null;
+  url_programma: { url: string | null; description?: string | null } | null;
+  nome_org: string | null;
+  geo_x: string | null;
+  geo_y: string | null;
+  location: { type: string; coordinates: [number, number] } | null;
 }

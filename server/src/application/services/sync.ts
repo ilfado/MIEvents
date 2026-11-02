@@ -4,6 +4,8 @@ import type { EventDraft, SourceResult, SyncOptions, SyncSummary } from "../../c
 import { categorize } from "../../core/categorize.js";
 import { syncWindow } from "../../core/types.js";
 import { lombardiaSagreSource } from "../../adapters/outbound/fetchers/lombardia.js";
+import { lombardiaAreaPubblicaSource } from "../../adapters/outbound/fetchers/lombardia-area-pubblica.js";
+import { tribeSources } from "../../adapters/outbound/fetchers/tribe.js";
 import { milanotodaySource } from "../../adapters/outbound/fetchers/milanotoday.js";
 import { cheventiSource } from "../../adapters/outbound/fetchers/cheventi.js";
 import { wikidataSource } from "../../adapters/outbound/fetchers/wikidata.js";
@@ -23,6 +25,8 @@ export interface SyncDeps {
 export function defaultSources(env: NodeJS.ProcessEnv): EventSource[] {
   return [
     lombardiaSagreSource,
+    lombardiaAreaPubblicaSource,
+    ...tribeSources,
     milanotodaySource,
     cheventiSource,
     wikidataSource,
