@@ -3,8 +3,16 @@ import type { MiEvent } from "@mievents/shared";
 import { categoryLabel, formatDateRange } from "../format.js";
 
 const MILAN = { lat: 45.4642, lon: 9.19 };
-const MIN_ZOOM = 9;
+const MIN_ZOOM = 7;
 const MAX_ZOOM = 17;
+const NORD_ITALIA = { north: 47.1, south: 43.5, west: 6.6, east: 13.7 };
+
+function clampView(v: View): View {
+  const zoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, v.zoom));
+  const lat = Math.min(NORD_ITALIA.north, Math.max(NORD_ITALIA.south, v.lat));
+  const lon = Math.min(NORD_ITALIA.east, Math.max(NORD_ITALIA.west, v.lon));
+  return { lat, lon, zoom };
+}
 
 function categoryColor(category: string): string {
   const colors: Record<string, string> = {
@@ -97,7 +105,8 @@ export function EventMap({
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
-  const [view, setView] = useState<View>({ lat: MILAN.lat, lon: MILAN.lon, zoom: 11 });
+  const [view, setViewRaw] = useState<View>({ lat: MILAN.lat, lon: MILAN.lon, zoom: 10 });
+  const setView = (u: View | ((v: View) => View)) => setViewRaw((v) => clampView(typeof u === "function" ? u(v) : u));
   const viewRef = useRef(view);
   viewRef.current = view;
   const [popup, setPopup] = useState<{ lat: number; lon: number; event?: MiEvent; cluster?: Cluster } | null>(null);
