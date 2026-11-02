@@ -1,9 +1,10 @@
 import { createHash } from "node:crypto";
-import type { EventSource } from "../ports.js";
+import type { EventSource, VenueSource } from "../ports.js";
 import type { EventDraft, SourceResult, SyncOptions, SyncSummary } from "../../core/types.js";
 import { categorize } from "../../core/categorize.js";
 import { pinForVenue } from "../../core/venue-pins.js";
 import { syncWindow } from "../../core/types.js";
+import { runVenueSync } from "./venue-sync.js";
 import { lombardiaSagreSource } from "../../adapters/outbound/fetchers/lombardia.js";
 import { lombardiaAreaPubblicaSource } from "../../adapters/outbound/fetchers/lombardia-area-pubblica.js";
 import { tribeSources } from "../../adapters/outbound/fetchers/tribe.js";
@@ -21,6 +22,7 @@ export interface SyncDeps {
   fetchImpl?: typeof fetch;
   env?: NodeJS.ProcessEnv;
   extraSources?: EventSource[];
+  extraVenueSources?: VenueSource[];
 }
 
 export function defaultSources(env: NodeJS.ProcessEnv): EventSource[] {
@@ -54,6 +56,7 @@ export async function runSync(deps: SyncDeps, opts: SyncOptions = {}): Promise<S
   let updated = 0;
   let geocoded = 0;
   let fetched = 0;
+  let venuesSynced = 0;
 
   const extra = deps.extraSources ?? [];
   const sources = extra.length > 0
@@ -75,6 +78,15 @@ export async function runSync(deps: SyncDeps, opts: SyncOptions = {}): Promise<S
   };
 
   let geocodeBudget = ctx.maxGeocode;
+
+  if (opts.syncVenues !== false) {
+    const vs = await runVenueSync(
+      { venues: deps.venues, fetchImpl, env, extraVenueSources: deps.extraVenueSources },
+      { limits: ctx.limits, fetchImpl, env },
+    );
+    venuesSynced = vs.venuesSynced;
+    for (const e of vs.errors) errors.push(e);
+  }
 
   const persist = async (drafts: EventDraft[]) => {
     for (const d of drafts) {
@@ -157,6 +169,7 @@ export async function runSync(deps: SyncDeps, opts: SyncOptions = {}): Promise<S
   deps.events.setSyncState("last_from_date", fromDate);
   deps.events.setSyncState("last_to_date", toDate);
   deps.events.setSyncState("last_total", String(fetched));
+  deps.events.setSyncState("last_venues", String(venuesSynced));
 
-  return { fetched, inserted, updated, geocoded, durationMs: Date.now() - started, errors };
+  return { fetched, inserted, updated, geocoded, venuesSynced, durationMs: Date.now() - started, errors };
 }

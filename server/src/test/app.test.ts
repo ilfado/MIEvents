@@ -50,7 +50,7 @@ test("sync persists drafts, geocodes once per venue, reports summary", async () 
   const src = testSource([DRAFT, { ...DRAFT, title: "SECONDO EVENTO STESSO VENUE", url: "https://example.org/festa2", start: "2026-11-06" }]);
   const res = await runSync(
     { events, venues, geocoder, extraSources: [src] },
-    { geocode: true, geocodeSleepMs: 0, env: {} },
+    { geocode: true, geocodeSleepMs: 0, env: {}, syncVenues: false },
   );
   assert.equal(res.errors.length, 0);
   assert.equal(res.inserted, 2);
@@ -68,7 +68,7 @@ test("default window = oggi..+15d solo con geo; all=1 mostra tutto", async () =>
   const venues = createVenueRepository(db);
   await runSync(
     { events, venues, geocoder: mockGeocoder(), extraSources: [testSource([DRAFT, PAST_DRAFT])] },
-    { env: {} },
+    { env: {}, syncVenues: false },
   );
   assert.equal(events.listEvents({ all: true }).total, 2);
   assert.equal(events.listEvents({}).total, 1);  // default: solo finestra 15gg (il passato escluso), geo NON richiesto in lista
@@ -88,7 +88,7 @@ test("fts search, filters, saved toggle", async () => {
   const db = openDb(":memory:");
   const events = createEventRepository(db);
   const venues = createVenueRepository(db);
-  await runSync({ events, venues, geocoder: mockGeocoder(), extraSources: [testSource([DRAFT, PAST_DRAFT])] }, { env: {} });
+  await runSync({ events, venues, geocoder: mockGeocoder(), extraSources: [testSource([DRAFT, PAST_DRAFT])] }, { env: {}, syncVenues: false });
   assert.equal(events.listEvents({ q: "birra", all: true }).total, 1);
   assert.equal(events.listEvents({ q: "BIRRA", all: true }).total, 1);
   assert.equal(events.listEvents({ q: "   ", all: true }).total, 2);
@@ -110,7 +110,7 @@ test("pinned source: no geocode consumed, venue persisted with coords", async ()
   const geocoder = mockGeocoder();
   const pinned = { ...DRAFT, sourceId: "tribe-base", sourceName: "BASE Milano", venue: "BASE Milano", address: "Via Tortona 40, 20144 Milano", city: "MILANO", lat: 45.4509, lon: 9.1587, url: "https://base.milano.it/event/x/" };
   const src = testSource([pinned, { ...pinned, title: "EVENTO 2 STESSA LOCATION", url: "https://base.milano.it/event/y/", lat: 45.4509, lon: 9.1587 }], "tribe-base");
-  const res = await runSync({ events, venues, geocoder, extraSources: [src] }, { geocode: true, geocodeSleepMs: 0, env: {} });
+  const res = await runSync({ events, venues, geocoder, extraSources: [src] }, { geocode: true, geocodeSleepMs: 0, env: {}, syncVenues: false });
   assert.equal(res.errors.length, 0);
   assert.equal(res.inserted, 2);
   assert.equal(res.geocoded, 0);
@@ -136,7 +136,7 @@ test("known venue pin wins over geocoder and is persisted", async () => {
   const unknown = { ...DRAFT, title: "EVENTO BAR SCONOSCIUTO", venue: "Bar Pippo", address: "Via inventata 1, Milano", city: "MILANO", url: "https://example.org/bar" };
   await runSync(
     { events, venues, geocoder, extraSources: [testSource([duomo, arcimboldi, unknown])] },
-    { geocode: true, geocodeSleepMs: 0, env: {} },
+    { geocode: true, geocodeSleepMs: 0, env: {}, syncVenues: false },
   );
   assert.equal(geocoder.calls.length, 1);
   assert.ok(geocoder.calls[0].includes("inventata"));
@@ -169,7 +169,7 @@ test("HTTP API end-to-end", async () => {
   const db = openDb(":memory:");
   const events = createEventRepository(db);
   const venues = createVenueRepository(db);
-  await runSync({ events, venues, geocoder: mockGeocoder(), extraSources: [testSource([DRAFT, PAST_DRAFT])] }, { env: {} });
+  await runSync({ events, venues, geocoder: mockGeocoder(), extraSources: [testSource([DRAFT, PAST_DRAFT])] }, { env: {}, syncVenues: false });
   const server = createServer({ db, webDist: "/nonexistent", events, venues });
   await new Promise<void>((resolve) => server.listen(0, resolve));
   const port = (server.address() as AddressInfo).port;

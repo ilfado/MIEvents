@@ -93,6 +93,7 @@ export function openDb(dbPath: string): DatabaseSync {
       city TEXT NOT NULL,
       lat REAL,
       lon REAL,
+      source TEXT,
       updated_at TEXT NOT NULL
     );
     CREATE INDEX IF NOT EXISTS idx_venues_name ON venues(name);
@@ -101,6 +102,11 @@ export function openDb(dbPath: string): DatabaseSync {
       value TEXT NOT NULL
     );
   `);
+  try {
+    db.exec("ALTER TABLE venues ADD COLUMN source TEXT");
+  } catch {
+    // colonna gi\u00e0 presente
+  }
   return db;
 }
 
@@ -296,21 +302,58 @@ export function createVenueRepository(db: DatabaseSync): VenueRepository {
       );
       return { id, name: v.name.trim(), address: v.address, city: v.city.toUpperCase(), lat: null, lon: null };
     },
-    coordsFor(venue, address) {
-      if (!venue && !address) return null;
+    findByName(name) {
       return (
         (db
-          .prepare(
-            "SELECT lat, lon FROM venues WHERE lat IS NOT NULL AND (lower(name) = lower(?) OR (? IS NOT NULL AND lower(address) LIKE '%' || lower(?) || '%')) LIMIT 1",
-          )
-          .get(venue ?? "", address, address ?? "") as { lat: number; lon: number } | undefined) ?? null
+          .prepare("SELECT id, name, address, city, lat, lon FROM venues WHERE lower(name) = lower(?) LIMIT 1")
+          .get(name.trim()) as { id: string; name: string; address: string | null; city: string; lat: number | null; lon: number | null } | undefined) ?? null
       );
+    },
+    updateVenueMeta(id, address, city, source, now) {
+      db.prepare(
+        `UPDATE venues SET
+           address = CASE WHEN address IS NULL OR address = '' THEN COALESCE(?, address) ELSE address END,
+           city = CASE WHEN city IS NULL OR city = '' THEN COALESCE(?, city) ELSE city END,
+           source = COALESCE(source, ?),
+           updated_at = ?
+         WHERE id = ?`,
+      ).run(address, city?.toUpperCase() ?? null, source, now, id);
+    },
+    coordsFor(venue, address) {
+      if (!venue && !address) return null;
+      const v = (venue ?? "").trim();
+      const a = (address ?? "").trim();
+      const exact = db
+        .prepare(
+          `SELECT lat, lon FROM venues
+           WHERE lat IS NOT NULL AND (
+             lower(name) = lower(?)
+             OR (? != '' AND lower(address) LIKE '%' || lower(?) || '%')
+           ) LIMIT 1`,
+        )
+        .get(v, a, a) as { lat: number; lon: number } | undefined;
+      if (exact) return exact;
+      if (v.length >= 6) {
+        return (
+          (db
+            .prepare(
+              `SELECT lat, lon FROM venues
+               WHERE lat IS NOT NULL AND (
+                 lower(name) LIKE '%' || lower(?) || '%'
+                 OR lower(?) LIKE '%' || lower(name) || '%'
+               )
+               ORDER BY length(name) ASC LIMIT 1`,
+            )
+            .get(v, v) as { lat: number; lon: number } | undefined) ?? null
+        );
+      }
+      return null;
     },
     setVenueCoords(id, lat, lon) {
       db.prepare("UPDATE venues SET lat = ?, lon = ?, updated_at = ? WHERE id = ?").run(lat, lon, new Date().toISOString(), id);
     },
     listVenues() {
-      return db.prepare("SELECT id, name, address, city, lat, lon FROM venues ORDER BY name LIMIT 500").all();
+      return db.prepare("SELECT id, name, address, city, lat, lon, source FROM venues ORDER BY name LIMIT 500").all();
     },
   };
 }

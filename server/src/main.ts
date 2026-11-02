@@ -21,7 +21,7 @@ if (isMain) {
   });
 
   const doSync = () =>
-    runSync({ events, venues, geocoder }, { geocode: cfg.syncGeocode, maxGeocode: cfg.syncMaxGeocode })
+    runSync({ events, venues, geocoder }, { geocode: cfg.syncGeocode, maxGeocode: cfg.syncMaxGeocode, syncVenues: cfg.syncVenues })
       .then((r) => console.log("Sync:", JSON.stringify(r)))
       .catch((e) => console.error("Sync failed:", e.message));
 

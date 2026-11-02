@@ -75,6 +75,7 @@ export interface SyncResult {
   inserted: number;
   updated: number;
   geocoded: number;
+  venuesSynced: number;
   durationMs: number;
   errors: string[];
 }

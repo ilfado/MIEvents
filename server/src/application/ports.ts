@@ -1,5 +1,5 @@
 import type { DatabaseSync } from "node:sqlite";
-import type { EventDraft, SourceResult, SyncSummary } from "../core/types.js";
+import type { EventDraft, SourceResult, SyncSummary, VenueSourceResult } from "../core/types.js";
 
 export interface EventRepository {
   upsertEvent(e: EventDraft & { id: string; category: string; saved: boolean; fetchedAt: string }): "inserted" | "updated";
@@ -14,6 +14,8 @@ export interface EventRepository {
 
 export interface VenueRepository {
   upsertVenue(v: { name: string; address: string | null; city: string }, now: string): { id: string; name: string; address: string | null; city: string; lat: number | null; lon: number | null };
+  findByName(name: string): { id: string; name: string; address: string | null; city: string; lat: number | null; lon: number | null } | null;
+  updateVenueMeta(id: string, address: string | null, city: string, source: string | null, now: string): void;
   coordsFor(venue: string | null, address: string | null): { lat: number; lon: number } | null;
   setVenueCoords(id: string, lat: number, lon: number): void;
   listVenues(): unknown[];
@@ -26,6 +28,18 @@ export interface Geocoder {
 export interface EventSource {
   id: string;
   run(ctx: SourceContext): Promise<SourceResult>;
+}
+
+export interface VenueSource {
+  id: string;
+  run(ctx: VenueSourceContext): Promise<VenueSourceResult>;
+}
+
+export interface VenueSourceContext {
+  fetchImpl: typeof fetch;
+  limits: Record<string, number>;
+  env: NodeJS.ProcessEnv;
+  now: () => string;
 }
 
 export interface SourceContext {
