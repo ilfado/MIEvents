@@ -12,7 +12,7 @@ import {
   toMiEvent,
   type ConnectorEvent,
 } from "./connectors2.js";
-import { apiKeysFromEnv, fetchTicketmasterEvents, fetchEventbriteEvents, fetchBandsintownEvents } from "./connectors3.js";
+import { apiKeysFromEnv, bitArtistsFromEnv, fetchTicketmasterEvents, fetchEventbriteEvents, fetchBandsintownEvents, DEFAULT_BIT_ARTISTS } from "./connectors3.js";
 
 const UA = "MIEvents/0.1 (https://github.com/ilfado/MIEvents)";
 const PAGE = 500;
@@ -49,6 +49,7 @@ export async function syncEvents(
     ticketing?: boolean;
     maxMilanotodayDetails?: number;
     maxCheventiPages?: number;
+    maxBitArtists?: number;
     fetchImpl?: typeof fetch;
   } = {},
 ): Promise<SyncResult> {
@@ -176,7 +177,7 @@ export async function syncEvents(
   const connectorJobs: Array<() => Promise<ConnectorEvent[]>> = [];
   if (opts.milanotoday !== false) {
     connectorJobs.push(async () =>
-      (await fetchMilanotodayEvents({ fetchImpl, maxDetails: opts.maxMilanotodayDetails ?? 40 })).map((ce) => ({
+      (await fetchMilanotodayEvents({ fetchImpl, maxDetails: opts.maxMilanotodayDetails ?? 40, from: fromDate })).map((ce) => ({
         ...ce,
         timeStart: null,
         timeEnd: null,
@@ -262,7 +263,12 @@ export async function syncEvents(
     }
     if (keys.bandsintown) {
       try {
-        await insertConnectorEvents(await fetchBandsintownEvents(keys.bandsintown, { fetchImpl }), false);
+        const artists = bitArtistsFromEnv();
+        const list = artists.length > 0 ? artists : DEFAULT_BIT_ARTISTS;
+        await insertConnectorEvents(
+          await fetchBandsintownEvents(keys.bandsintown, { fetchImpl, artists: list, maxArtists: opts.maxBitArtists ?? 25 }),
+          false,
+        );
       } catch (err) {
         errors.push(`bandsintown: ${(err as Error).message}`);
       }
