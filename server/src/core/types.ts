@@ -33,6 +33,7 @@ export interface SyncSummary {
 
 export interface SyncOptions {
   fromDate?: string;
+  toDate?: string;
   geocode?: boolean;
   maxGeocode?: number;
   geocodeSleepMs?: number;
@@ -40,4 +41,10 @@ export interface SyncOptions {
   limits?: Record<string, number>;
   fetchImpl?: typeof fetch;
   env?: NodeJS.ProcessEnv;
+}
+
+export function syncWindow(now = new Date(), days = 15): { fromDate: string; toDate: string } {
+  const from = now.toISOString().slice(0, 10);
+  const to = new Date(now.getTime() + days * 86400000).toISOString().slice(0, 10);
+  return { fromDate: from, toDate: to };
 }

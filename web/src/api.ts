@@ -7,6 +7,7 @@ export interface Filters {
   from: string;
   to: string;
   bbox?: string;
+  offset?: number;
 }
 
 export const EMPTY_FILTERS: Filters = { q: "", city: "", category: "", from: "", to: "" };
@@ -19,6 +20,7 @@ export async function fetchEvents(f: Filters): Promise<EventsResponse> {
   if (f.from) params.set("from", f.from);
   if (f.to) params.set("to", f.to);
   if (f.bbox) params.set("bbox", f.bbox);
+  if (f.offset) params.set("offset", String(f.offset));
   const res = await fetch(`/api/events?${params.toString()}`);
   if (!res.ok) throw new Error(`Errore caricamento eventi (${res.status})`);
   return res.json();

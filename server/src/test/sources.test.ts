@@ -22,6 +22,7 @@ function makeCtx(over: Partial<SourceContext>): SourceContext {
   return {
     fetchImpl: (async () => new Response("", { status: 200 })) as typeof fetch,
     fromDate: "2026-01-01",
+    toDate: "2026-12-31",
     geocode: false,
     geocodeSleepMs: 0,
     maxGeocode: 0,

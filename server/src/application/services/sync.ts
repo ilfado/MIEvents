@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import type { EventSource } from "../ports.js";
 import type { EventDraft, SourceResult, SyncOptions, SyncSummary } from "../../core/types.js";
 import { categorize } from "../../core/categorize.js";
-import { todayIso } from "../../core/text.js";
+import { syncWindow } from "../../core/types.js";
 import { lombardiaSagreSource } from "../../adapters/outbound/fetchers/lombardia.js";
 import { milanotodaySource } from "../../adapters/outbound/fetchers/milanotoday.js";
 import { cheventiSource } from "../../adapters/outbound/fetchers/cheventi.js";
@@ -40,7 +40,9 @@ export async function runSync(deps: SyncDeps, opts: SyncOptions = {}): Promise<S
   const started = Date.now();
   const fetchImpl = opts.fetchImpl ?? deps.fetchImpl ?? fetch;
   const env = opts.env ?? deps.env ?? process.env;
-  const fromDate = opts.fromDate ?? todayIso();
+  const win = syncWindow();
+  const fromDate = opts.fromDate ?? win.fromDate;
+  const toDate = opts.toDate ?? win.toDate;
   const fetchedAt = new Date().toISOString();
   const errors: string[] = [];
   let inserted = 0;
@@ -56,7 +58,8 @@ export async function runSync(deps: SyncDeps, opts: SyncOptions = {}): Promise<S
   const ctx = {
     fetchImpl,
     fromDate,
-    geocode: opts.geocode ?? false,
+    toDate,
+    geocode: opts.geocode ?? true,
     geocodeSleepMs: opts.geocodeSleepMs ?? 1100,
     maxGeocode: opts.maxGeocode ?? 200,
     limits: opts.limits ?? {},
@@ -81,7 +84,7 @@ export async function runSync(deps: SyncDeps, opts: SyncOptions = {}): Promise<S
           lon = cached.lon;
         } else if (ctx.geocode && geocodeBudget > 0) {
           geocodeBudget--;
-          const q = [d.address, d.city, "MI"].filter(Boolean).join(", ");
+          const q = [d.address, d.venue, d.city, "MI"].filter(Boolean).join(", ");
           const point = await deps.geocoder.geocode(q);
           if (point) {
             deps.venues.setVenueCoords(v.id, point.lat, point.lon);
@@ -90,6 +93,13 @@ export async function runSync(deps: SyncDeps, opts: SyncOptions = {}): Promise<S
             geocoded++;
           }
           await new Promise((r) => setTimeout(r, ctx.geocodeSleepMs));
+        }
+      }
+      if (lat == null && d.venue) {
+        const byName = deps.venues.coordsFor(d.venue, null);
+        if (byName) {
+          lat = byName.lat;
+          lon = byName.lon;
         }
       }
       const category = categorize(`${d.title} ${d.description ?? ""}`);
@@ -119,6 +129,7 @@ export async function runSync(deps: SyncDeps, opts: SyncOptions = {}): Promise<S
 
   deps.events.setSyncState("last_sync", fetchedAt);
   deps.events.setSyncState("last_from_date", fromDate);
+  deps.events.setSyncState("last_to_date", toDate);
   deps.events.setSyncState("last_total", String(fetched));
 
   return { fetched, inserted, updated, geocoded, durationMs: Date.now() - started, errors };

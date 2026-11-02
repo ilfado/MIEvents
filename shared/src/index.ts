@@ -59,6 +59,9 @@ export interface EventFilters {
   bbox?: string;
   savedOnly?: boolean;
   includePast?: boolean;
+  all?: boolean;
+  limit?: number;
+  offset?: number;
 }
 
 export interface EventsResponse {

@@ -12,8 +12,8 @@ const DRAFT = {
   sourceName: "Test Source",
   title: "FESTA DELLA BIRRA",
   description: "Sagra con musica e birra artigianale a Senago",
-  start: "2099-09-25",
-  end: "2099-09-27",
+  start: "2026-11-05",  // dentro finestra 15gg da oggi (2026-11-02)
+  end: "2026-11-07",
   timeStart: "19:00",
   timeEnd: "23:59",
   url: "https://example.org/festa",
@@ -47,7 +47,7 @@ test("sync persists drafts, geocodes once per venue, reports summary", async () 
   const events = createEventRepository(db);
   const venues = createVenueRepository(db);
   const geocoder = mockGeocoder();
-  const src = testSource([DRAFT, { ...DRAFT, title: "SECONDO EVENTO STESSO VENUE", url: "https://example.org/festa2", start: "2099-10-01" }]);
+  const src = testSource([DRAFT, { ...DRAFT, title: "SECONDO EVENTO STESSO VENUE", url: "https://example.org/festa2", start: "2026-11-06" }]);
   const res = await runSync(
     { events, venues, geocoder, extraSources: [src] },
     { geocode: true, geocodeSleepMs: 0, env: {} },
@@ -55,14 +55,14 @@ test("sync persists drafts, geocodes once per venue, reports summary", async () 
   assert.equal(res.errors.length, 0);
   assert.equal(res.inserted, 2);
   assert.equal(geocoder.calls.length, 1);
-  const all = events.listEvents({ includePast: true });
+  const all = events.listEvents({ all: true });
   assert.equal(all.total, 2);
   assert.ok(all.events.every((e) => e.lat === 45.5741 && e.lon === 9.1635));
   assert.equal(all.events[0].category, "sagra");
   assert.equal(draftId(DRAFT).length, 16);
 });
 
-test("default list hides past events; includePast and explicit range show them", async () => {
+test("default window = oggi..+15d solo con geo; all=1 mostra tutto", async () => {
   const db = openDb(":memory:");
   const events = createEventRepository(db);
   const venues = createVenueRepository(db);
@@ -70,9 +70,9 @@ test("default list hides past events; includePast and explicit range show them",
     { events, venues, geocoder: mockGeocoder(), extraSources: [testSource([DRAFT, PAST_DRAFT])] },
     { env: {} },
   );
+  assert.equal(events.listEvents({ all: true }).total, 2);
   assert.equal(events.listEvents({}).total, 1);
-  assert.equal(events.listEvents({ includePast: true }).total, 2);
-  assert.equal(events.listEvents({ from: "2020-01-01" }).total, 2);
+  assert.equal(events.listEvents({ from: "2020-01-01", all: true }).total, 2);
   assert.throws(() => events.listEvents({ from: "2026-02-30" }), /from/);
   assert.throws(() => events.listEvents({ bbox: "bad" }), /bbox/);
 });
@@ -82,16 +82,16 @@ test("fts search, filters, saved toggle", async () => {
   const events = createEventRepository(db);
   const venues = createVenueRepository(db);
   await runSync({ events, venues, geocoder: mockGeocoder(), extraSources: [testSource([DRAFT, PAST_DRAFT])] }, { env: {} });
-  assert.equal(events.listEvents({ q: "birra", includePast: true }).total, 1);
-  assert.equal(events.listEvents({ q: "BIRRA", includePast: true }).total, 1);
-  assert.equal(events.listEvents({ q: "   ", includePast: true }).total, 2);
-  assert.equal(events.listEvents({ q: "nope", includePast: true }).total, 0);
-  assert.equal(events.listEvents({ city: "senago", includePast: true }).total, 2);
-  const ev = events.listEvents({ q: "birra", includePast: true }).events.find((e) => e.title === "FESTA DELLA BIRRA")!;
+  assert.equal(events.listEvents({ q: "birra", all: true }).total, 1);
+  assert.equal(events.listEvents({ q: "BIRRA", all: true }).total, 1);
+  assert.equal(events.listEvents({ q: "   ", all: true }).total, 2);
+  assert.equal(events.listEvents({ q: "nope", all: true }).total, 0);
+  assert.equal(events.listEvents({ city: "senago", all: true }).total, 2);
+  const ev = events.listEvents({ q: "birra", all: true }).events.find((e) => e.title === "FESTA DELLA BIRRA")!;
   assert.equal(ev.saved, false);
   assert.ok(events.setSaved(ev.id, true));
-  assert.equal(events.listEvents({ savedOnly: true, includePast: true }).total, 1);
-  assert.equal(events.listEvents({ category: "saved", includePast: true }).total, 1);
+  assert.equal(events.listEvents({ savedOnly: true, all: true }).total, 1);
+  assert.equal(events.listEvents({ category: "saved", all: true }).total, 1);
   assert.equal(events.getEvent(ev.id)?.saved, true);
   assert.ok(!events.setSaved("missing", true));
 });
@@ -123,11 +123,11 @@ test("HTTP API end-to-end", async () => {
       return { status: res.status, body: await res.json() };
     };
     assert.deepEqual(await get("/api/health"), { status: 200, body: { ok: true } });
-    const all = await get("/api/events?includePast=1");
+    const all = await get("/api/events?all=1");
     assert.equal(all.body.total, 2);
-    const def = await get("/api/events");
+    const def = await get("/api/events");  // default: finestra 15gg + geo
     assert.equal(def.body.total, 1);
-    const filtered = await get("/api/events?category=sagra&from=2099-01-01");
+    const filtered = await get("/api/events?category=sagra&all=1");
     assert.equal(filtered.body.total, 1);
     const bad = await get("/api/events?category=zzz");
     assert.equal(bad.status, 400);
@@ -139,7 +139,7 @@ test("HTTP API end-to-end", async () => {
     });
     assert.equal(saved.status, 200);
     assert.equal((await saved.json()).saved, true);
-    assert.equal((await get("/api/events?saved=1&includePast=1")).body.total, 1);
+    assert.equal((await get("/api/events?saved=1&all=1")).body.total, 1);
     const missing = await fetch(`http://127.0.0.1:${port}/api/events/nope`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
