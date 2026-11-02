@@ -4,7 +4,7 @@ import { categoryLabel, formatDateRange } from "../format.js";
 
 const MILAN = { lat: 45.4642, lon: 9.19 };
 const MIN_ZOOM = 9;
-const MAX_ZOOM = 16;
+const MAX_ZOOM = 17;
 
 function categoryColor(category: string): string {
   const colors: Record<string, string> = {
@@ -58,16 +58,22 @@ function cluster(events: MiEvent[], zoom: number): Array<Cluster | { single: MiE
 
 const tileCache = new Map<string, HTMLImageElement>();
 
-function loadTile(z: number, x: number, y: number): HTMLImageElement | null {
+function loadTile(z: number, x: number, y: number): HTMLImageElement {
   const key = `${z}/${x}/${y}`;
-  const cached = tileCache.get(key);
-  if (cached !== undefined) return cached;
-  if (tileCache.size > 400) tileCache.clear();
-  const img = new Image();
+  let img = tileCache.get(key);
+  if (img) return img;
+  if (tileCache.size > 500) tileCache.clear();
+  img = new Image();
   img.crossOrigin = "anonymous";
   img.src = `https://tile.openstreetmap.org/${z}/${x}/${y}.png`;
   tileCache.set(key, img);
   return img;
+}
+
+interface View {
+  lat: number;
+  lon: number;
+  zoom: number;
 }
 
 export function EventMap({
@@ -91,38 +97,43 @@ export function EventMap({
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
-  const [view, setView] = useState({ lat: MILAN.lat, lon: MILAN.lon, zoom: 11 });
-  const [popup, setPopup] = useState<{ x: number; y: number; event: MiEvent } | { x: number; y: number; cluster: Cluster } | null>(null);
+  const [view, setView] = useState<View>({ lat: MILAN.lat, lon: MILAN.lon, zoom: 11 });
+  const viewRef = useRef(view);
+  viewRef.current = view;
+  const [popup, setPopup] = useState<{ lat: number; lon: number; event?: MiEvent; cluster?: Cluster } | null>(null);
   const [tilesVersion, setTilesVersion] = useState(0);
-  const dragRef = useRef<{ sx: number; sy: number; clat: number; clon: number; moved: boolean } | null>(null);
+
   const pointersRef = useRef<Map<number, { x: number; y: number }>>(new Map());
-  const pinchRef = useRef<{ d0: number; zoom0: number; clat: number; clon: number } | null>(null);
+  const gestureRef = useRef<
+    | { kind: "pan"; startX: number; startY: number; lat0: number; lon0: number; zoom0: number; moved: boolean }
+    | { kind: "pinch"; d0: number; zoom0: number; lat0: number; lon0: number; mid0: { x: number; y: number } }
+    | null
+  >(null);
 
   const selected = events.find((e) => e.id === selectedId);
   useEffect(() => {
     if (selected?.lat != null && selected.lon != null) {
-      setView((v) => ({ ...v, lat: selected.lat as number, lon: selected.lon as number, zoom: Math.max(v.zoom, 13) }));
+      setView((v) => ({ lat: selected.lat as number, lon: selected.lon as number, zoom: Math.max(v.zoom, 13) }));
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selected?.id]);
 
   const clusters = useMemo(() => cluster(events, view.zoom), [events, view.zoom]);
 
-  const reportBbox = useCallback(
-    (v: { lat: number; lon: number; zoom: number }) => {
-      const el = wrapRef.current;
-      if (!el) return;
-      const w = el.clientWidth;
-      const h = el.clientHeight;
-      const c = project(v.lat, v.lon, v.zoom);
-      const nw = unproject(c.x - w / 2, c.y - h / 2, v.zoom);
-      const se = unproject(c.x + w / 2, c.y + h / 2, v.zoom);
-      onBbox(`${se.lat.toFixed(5)},${nw.lon.toFixed(5)},${nw.lat.toFixed(5)},${se.lon.toFixed(5)}`);
-    },
-    [onBbox],
-  );
+  const reportBbox = useCallback(() => {
+    const el = wrapRef.current;
+    if (!el) return;
+    const v = viewRef.current;
+    const w = el.clientWidth;
+    const h = el.clientHeight;
+    const c = project(v.lat, v.lon, v.zoom);
+    const nw = unproject(c.x - w / 2, c.y - h / 2, v.zoom);
+    const se = unproject(c.x + w / 2, c.y + h / 2, v.zoom);
+    onBbox(`${se.lat.toFixed(5)},${nw.lon.toFixed(5)},${nw.lat.toFixed(5)},${se.lon.toFixed(5)}`);
+  }, [onBbox]);
 
   useEffect(() => {
-    reportBbox(view);
+    reportBbox();
   }, [view, reportBbox]);
 
   const draw = useCallback(() => {
@@ -132,9 +143,9 @@ export function EventMap({
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
     const w = wrap.clientWidth;
     const h = wrap.clientHeight;
-    if (canvas.width !== w * dpr || canvas.height !== h * dpr) {
-      canvas.width = w * dpr;
-      canvas.height = h * dpr;
+    if (canvas.width !== Math.round(w * dpr) || canvas.height !== Math.round(h * dpr)) {
+      canvas.width = Math.round(w * dpr);
+      canvas.height = Math.round(h * dpr);
       canvas.style.width = `${w}px`;
       canvas.style.height = `${h}px`;
     }
@@ -142,43 +153,42 @@ export function EventMap({
     if (!ctx) return;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.imageSmoothingEnabled = false;
+    const v = viewRef.current;
+
     ctx.fillStyle = "#f2f0ea";
     ctx.fillRect(0, 0, w, h);
 
-    const center = project(view.lat, view.lon, view.zoom);
-    const z = Math.round(view.zoom);
-    const scale = 256 * 2 ** z;
-    const cx = ((view.lon + 180) / 360) * scale;
-    const cy = center.y;
-
     if (showStreets) {
-      const x0 = Math.floor((cx - w / 2) / 256);
+      const z = Math.round(v.zoom);
+      const scale = 256 * 2 ** z;
+      const cx = ((v.lon + 180) / 360) * scale;
+      const cy = project(v.lat, v.lon, v.zoom).y;
+      const x0 = Math.max(0, Math.floor((cx - w / 2) / 256));
       const x1 = Math.floor((cx + w / 2) / 256);
-      const y0 = Math.floor((cy - h / 2) / 256);
-      const y1 = Math.floor((cy + h / 2) / 256);
+      const y0 = Math.max(0, Math.floor((cy - h / 2) / 256));
+      const y1 = Math.min(2 ** z - 1, Math.floor((cy + h / 2) / 256));
+      const tileSize = 256 * 2 ** (v.zoom - z);
       for (let tx = x0; tx <= x1; tx++) {
         for (let ty = y0; ty <= y1; ty++) {
-          if (ty < 0 || ty >= 2 ** z) continue;
-          const img = loadTile(z, ((tx % 2 ** z) + 2 ** z) % 2 ** z, ty);
-          if (!img) continue;
+          const img = loadTile(z, tx, ty);
           const dx = tx * 256 - cx + w / 2;
           const dy = ty * 256 - cy + h / 2;
           if (img.complete && img.naturalWidth > 0) {
             ctx.save();
-            ctx.globalAlpha = 0.9;
+            ctx.globalAlpha = 0.92;
             ctx.filter = "grayscale(1) contrast(1.05) brightness(1.02)";
-            ctx.imageSmoothingEnabled = view.zoom % 1 !== 0;
-            ctx.drawImage(img, dx, dy, 256 * 2 ** (view.zoom - z), 256 * 2 ** (view.zoom - z));
+            ctx.drawImage(img, dx, dy, tileSize, tileSize);
             ctx.restore();
-          } else {
-            img.onload = () => setTilesVersion((v) => v + 1);
+          } else if (!img.complete) {
+            img.onload = () => setTilesVersion((n) => n + 1);
+            img.onerror = () => setTilesVersion((n) => n + 1);
           }
         }
       }
     }
 
     const grid = 64;
-    ctx.strokeStyle = "#e3e0d8";
+    ctx.strokeStyle = showStreets ? "rgba(17,17,17,0.06)" : "#e3e0d8";
     ctx.lineWidth = 1;
     for (let x = (w / 2) % grid; x < w; x += grid) {
       ctx.beginPath();
@@ -193,10 +203,11 @@ export function EventMap({
       ctx.stroke();
     }
 
+    const center = project(v.lat, v.lon, v.zoom);
     for (const c of clusters) {
       const lat = "single" in c ? (c.single.lat as number) : c.lat;
       const lon = "single" in c ? (c.single.lon as number) : c.lon;
-      const p = project(lat, lon, view.zoom);
+      const p = project(lat, lon, v.zoom);
       const x = p.x - center.x + w / 2;
       const y = p.y - center.y + h / 2;
       if (x < -40 || x > w + 40 || y < -40 || y > h + 40) continue;
@@ -227,10 +238,13 @@ export function EventMap({
         ctx.fillText(String(c.events.length), x, y + 1);
       }
     }
-  }, [clusters, view, selectedId, showStreets, tilesVersion]);
+  }, [clusters, selectedId, showStreets, tilesVersion]);
 
   useEffect(() => {
     draw();
+  }, [draw]);
+
+  useEffect(() => {
     const onResize = () => draw();
     window.addEventListener("resize", onResize);
     return () => window.removeEventListener("resize", onResize);
@@ -239,128 +253,151 @@ export function EventMap({
   const pick = useCallback(
     (mx: number, my: number) => {
       const wrap = wrapRef.current;
-      if (!wrap) return;
+      if (!wrap) return null;
+      const v = viewRef.current;
       const w = wrap.clientWidth;
       const h = wrap.clientHeight;
-      const center = project(view.lat, view.lon, view.zoom);
+      const center = project(v.lat, v.lon, v.zoom);
       for (const c of clusters) {
         const lat = "single" in c ? (c.single.lat as number) : c.lat;
         const lon = "single" in c ? (c.single.lon as number) : c.lon;
-        const p = project(lat, lon, view.zoom);
+        const p = project(lat, lon, v.zoom);
         const x = p.x - center.x + w / 2;
         const y = p.y - center.y + h / 2;
-        const size = "single" in c ? 22 : 36;
-        if (Math.abs(mx - x) <= size / 2 && Math.abs(my - y) <= size / 2) {
-          return { x, y, cluster: c } as const;
-        }
+        const size = "single" in c ? 24 : 38;
+        if (Math.abs(mx - x) <= size / 2 && Math.abs(my - y) <= size / 2) return c;
       }
       return null;
     },
-    [clusters, view],
+    [clusters],
   );
+
+  const applyZoomAt = useCallback((newZoom: number, px: number, py: number) => {
+    setView((v) => {
+      const zoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, newZoom));
+      if (zoom === v.zoom) return v;
+      const wrap = wrapRef.current;
+      const w = wrap?.clientWidth ?? 0;
+      const h = wrap?.clientHeight ?? 0;
+      const center = project(v.lat, v.lon, v.zoom);
+      const scale = 2 ** (zoom - v.zoom);
+      const nx = center.x + (px - w / 2) * (1 - 1 / scale);
+      const ny = center.y + (py - h / 2) * (1 - 1 / scale);
+      const geo = unproject(nx, ny, zoom);
+      return { lat: geo.lat, lon: geo.lon, zoom };
+    });
+  }, []);
 
   const onPointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
     const rect = e.currentTarget.getBoundingClientRect();
     e.currentTarget.setPointerCapture(e.pointerId);
-    pointersRef.current.set(e.pointerId, { x: e.clientX - rect.left, y: e.clientY - rect.top });
+    const p = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+    pointersRef.current.set(e.pointerId, p);
     if (pointersRef.current.size === 2) {
       const [a, b] = [...pointersRef.current.values()];
-      const d0 = Math.hypot(a.x - b.x, a.y - b.y);
-      pinchRef.current = { d0, zoom0: view.zoom, clat: view.lat, clon: view.lon };
-      dragRef.current = null;
+      const v = viewRef.current;
+      gestureRef.current = {
+        kind: "pinch",
+        d0: Math.max(10, Math.hypot(a.x - b.x, a.y - b.y)),
+        zoom0: v.zoom,
+        lat0: v.lat,
+        lon0: v.lon,
+        mid0: { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 },
+      };
       return;
     }
     if (pointersRef.current.size === 1) {
-      dragRef.current = { sx: e.clientX, sy: e.clientY, clat: view.lat, clon: view.lon, moved: false };
+      const v = viewRef.current;
+      gestureRef.current = { kind: "pan", startX: p.x, startY: p.y, lat0: v.lat, lon0: v.lon, zoom0: v.zoom, moved: false };
     }
   };
 
   const onPointerMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
     const rect = e.currentTarget.getBoundingClientRect();
+    const p = { x: e.clientX - rect.left, y: e.clientY - rect.top };
     if (!pointersRef.current.has(e.pointerId)) return;
-    pointersRef.current.set(e.pointerId, { x: e.clientX - rect.left, y: e.clientY - rect.top });
+    pointersRef.current.set(e.pointerId, p);
+    const g = gestureRef.current;
+    if (!g) return;
 
-    if (pointersRef.current.size === 2 && pinchRef.current) {
+    if (g.kind === "pinch" && pointersRef.current.size >= 2) {
       const [a, b] = [...pointersRef.current.values()];
-      const d = Math.hypot(a.x - b.x, a.y - b.y);
-      const pinch = pinchRef.current;
-      if (d < 10) return;
-      const zoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, pinch.zoom0 + Math.log2(d / pinch.d0)));
-      const midX = (a.x + b.x) / 2;
-      const midY = (a.y + b.y) / 2;
-      setView((v) => {
-        const center = project(pinch.clat, pinch.clon, pinch.zoom0);
-        const scale = 2 ** (zoom - pinch.zoom0);
-        const px = center.x + (midX - rect.width / 2) * (1 - 1 / scale);
-        const py = center.y + (midY - rect.height / 2) * (1 - 1 / scale);
-        const geo = unproject(px, py, zoom);
-        return { lat: geo.lat, lon: geo.lon, zoom };
-      });
+      const d = Math.max(10, Math.hypot(a.x - b.x, a.y - b.y));
+      const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+      const newZoom = g.zoom0 + Math.log2(d / g.d0);
+      applyZoomAt(newZoom, mid.x, mid.y);
       return;
     }
 
-    const drag = dragRef.current;
-    if (!drag) return;
-    const dx = e.clientX - drag.sx;
-    const dy = e.clientY - drag.sy;
-    if (Math.abs(dx) + Math.abs(dy) > 4) drag.moved = true;
-    if (!drag.moved) return;
-    const center = project(drag.clat, drag.clon, view.zoom);
-    const nw = unproject(center.x - dx, center.y - dy, view.zoom);
-    setView((v) => ({ ...v, lat: nw.lat, lon: nw.lon }));
+    if (g.kind === "pan" && pointersRef.current.size === 1) {
+      const dx = p.x - g.startX;
+      const dy = p.y - g.startY;
+      if (Math.abs(dx) + Math.abs(dy) > 4) g.moved = true;
+      if (!g.moved) return;
+      const wrap = wrapRef.current;
+      const w = wrap?.clientWidth ?? 0;
+      const h = wrap?.clientHeight ?? 0;
+      const center = project(g.lat0, g.lon0, g.zoom0);
+      const nw = unproject(center.x - dx, center.y - dy, g.zoom0);
+      setView((v) => ({ ...v, lat: nw.lat, lon: nw.lon }));
+    }
   };
 
-  const onPointerUp = (e: React.PointerEvent<HTMLCanvasElement>) => {
-    const wasPinch = pinchRef.current !== null && pointersRef.current.size >= 2;
+  const endPointer = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    const hadPinch = gestureRef.current?.kind === "pinch";
+    const wasTap = gestureRef.current?.kind === "pan" && !gestureRef.current.moved;
     pointersRef.current.delete(e.pointerId);
-    if (pointersRef.current.size < 2) pinchRef.current = null;
-    if (pointersRef.current.size === 1) {
-      const [p] = [...pointersRef.current.entries()];
-      dragRef.current = { sx: e.clientX + (p[1].x - (e.clientX - e.currentTarget.getBoundingClientRect().left)), sy: e.clientY, clat: view.lat, clon: view.lon, moved: true };
-      dragRef.current = null;
-    }
-    const drag = dragRef.current;
-    if (wasPinch) {
-      dragRef.current = null;
-      return;
-    }
-    dragRef.current = null;
-    if (!drag || drag.moved) return;
-    const rect = e.currentTarget.getBoundingClientRect();
-    const mx = e.clientX - rect.left;
-    const my = e.clientY - rect.top;
-    const hit = pick(mx, my);
-    if (!hit) {
-      setPopup(null);
-      return;
-    }
-    if ("single" in hit.cluster) {
-      const ev = hit.cluster.single;
-      setPopup({ x: hit.x, y: hit.y, event: ev });
-      onSelect(ev);
-    } else {
-      setPopup({ x: hit.x, y: hit.y, cluster: hit.cluster });
+    if (pointersRef.current.size < 2 && gestureRef.current?.kind === "pinch") gestureRef.current = null;
+    if (pointersRef.current.size === 0) {
+      const g = gestureRef.current;
+      gestureRef.current = null;
+      if (hadPinch || !wasTap || !g) return;
+      const rect = e.currentTarget.getBoundingClientRect();
+      const hit = pick(e.clientX - rect.left, e.clientY - rect.top);
+      if (!hit) {
+        setPopup(null);
+        return;
+      }
+      if ("single" in hit) {
+        setPopup({ lat: hit.single.lat as number, lon: hit.single.lon as number, event: hit.single });
+        onSelect(hit.single);
+      } else {
+        setPopup({ lat: hit.lat, lon: hit.lon, cluster: hit });
+      }
     }
   };
 
-  const onWheel = (e: React.WheelEvent<HTMLCanvasElement>) => {
-    e.preventDefault();
-    const rect = e.currentTarget.getBoundingClientRect();
-    const mx = e.clientX - rect.left;
-    const my = e.clientY - rect.top;
-    setView((v) => {
-      const zoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, v.zoom + (e.deltaY < 0 ? 1 : -1)));
-      if (zoom === v.zoom) return v;
-      const before = project(v.lat, v.lon, v.zoom);
-      const scale = 2 ** (zoom - v.zoom);
-      const p = { x: before.x + (mx - rect.width / 2) * (1 - 1 / scale) * 1, y: before.y + (my - rect.height / 2) * (1 - 1 / scale) };
-      const geo = unproject(p.x, p.y, zoom);
-      return { lat: geo.lat, lon: geo.lon, zoom };
-    });
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      const rect = canvas.getBoundingClientRect();
+      const px = e.clientX - rect.left;
+      const py = e.clientY - rect.top;
+      const v = viewRef.current;
+      applyZoomAt(v.zoom + (e.deltaY < 0 ? 0.5 : -0.5), px, py);
+    };
+    canvas.addEventListener("wheel", onWheel, { passive: false });
+    return () => canvas.removeEventListener("wheel", onWheel);
+  }, [applyZoomAt]);
+
+  const zoomBy = (delta: number) => {
+    const wrap = wrapRef.current;
+    applyZoomAt(viewRef.current.zoom + delta, (wrap?.clientWidth ?? 0) / 2, (wrap?.clientHeight ?? 0) / 2);
   };
 
-  const zoomBy = (delta: number) =>
-    setView((v) => ({ ...v, zoom: Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, v.zoom + delta)) }));
+  const popupScreen = useMemo(() => {
+    if (!popup) return null;
+    const wrap = wrapRef.current;
+    if (!wrap) return null;
+    const v = view;
+    const w = wrap.clientWidth;
+    const h = wrap.clientHeight;
+    const c = project(v.lat, v.lon, v.zoom);
+    const p = project(popup.lat, popup.lon, v.zoom);
+    return { x: p.x - c.x + w / 2, y: p.y - c.y + h / 2 };
+  }, [popup, view]);
 
   return (
     <div className="map-wrap" ref={wrapRef}>
@@ -391,19 +428,19 @@ export function EventMap({
         aria-label="Mappa eventi"
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
-        onPointerUp={onPointerUp}
-        onWheel={onWheel}
+        onPointerUp={endPointer}
+        onPointerCancel={endPointer}
         style={{ touchAction: "none", cursor: "grab" }}
       />
-      {popup && (
+      {popup && popupScreen && (
         <div
           className="map-popup"
           style={{
-            left: Math.min(popup.x + 12, (wrapRef.current?.clientWidth ?? 300) - 260),
-            top: Math.max(popup.y - 10, 8),
+            left: Math.max(8, Math.min(popupScreen.x + 14, (wrapRef.current?.clientWidth ?? 320) - 258)),
+            top: Math.max(8, popupScreen.y - 12),
           }}
         >
-          {"event" in popup ? (
+          {popup.event ? (
             <>
               <strong>{popup.event.title}</strong>
               <br />
@@ -418,8 +455,8 @@ export function EventMap({
             </>
           ) : (
             <>
-              <strong>{popup.cluster.events.length} EVENTI QUI</strong>
-              {popup.cluster.events.slice(0, 8).map((e) => (
+              <strong>{popup.cluster?.events.length} EVENTI QUI</strong>
+              {popup.cluster?.events.slice(0, 8).map((e) => (
                 <div key={e.id}>
                   <button type="button" className="map-popup-btn" onClick={() => onSelect(e)}>
                     {e.title}
