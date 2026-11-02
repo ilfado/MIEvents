@@ -7,10 +7,23 @@ const MIN_ZOOM = 7;
 const MAX_ZOOM = 17;
 const NORD_ITALIA = { north: 47.1, south: 43.5, west: 6.6, east: 13.7 };
 
-function clampView(v: View): View {
+function clampView(v: View, w = 0, h = 0): View {
   const zoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, v.zoom));
-  const lat = Math.min(NORD_ITALIA.north, Math.max(NORD_ITALIA.south, v.lat));
-  const lon = Math.min(NORD_ITALIA.east, Math.max(NORD_ITALIA.west, v.lon));
+  let lat = v.lat;
+  let lon = v.lon;
+  if (w > 0 && h > 0) {
+    const c = project(lat, lon, zoom);
+    const nw = unproject(c.x - w / 2, c.y - h / 2, zoom);
+    const se = unproject(c.x + w / 2, c.y + h / 2, zoom);
+    const latSpan = nw.lat - se.lat;
+    const lonSpan = se.lon - nw.lon;
+    const maxLatSpan = NORD_ITALIA.north - NORD_ITALIA.south;
+    const maxLonSpan = NORD_ITALIA.east - NORD_ITALIA.west;
+    if (latSpan >= maxLatSpan) lat = (NORD_ITALIA.north + NORD_ITALIA.south) / 2;
+    else lat = Math.min(NORD_ITALIA.north - latSpan / 2, Math.max(NORD_ITALIA.south + latSpan / 2, lat));
+    if (lonSpan >= maxLonSpan) lon = (NORD_ITALIA.east + NORD_ITALIA.west) / 2;
+    else lon = Math.min(NORD_ITALIA.east - lonSpan / 2, Math.max(NORD_ITALIA.west + lonSpan / 2, lon));
+  }
   return { lat, lon, zoom };
 }
 
@@ -106,7 +119,11 @@ export function EventMap({
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
   const [view, setViewRaw] = useState<View>({ lat: MILAN.lat, lon: MILAN.lon, zoom: 10 });
-  const setView = (u: View | ((v: View) => View)) => setViewRaw((v) => clampView(typeof u === "function" ? u(v) : u));
+  const setView = (u: View | ((v: View) => View)) =>
+    setViewRaw((v) => {
+      const wrap = wrapRef.current;
+      return clampView(typeof u === "function" ? u(v) : u, wrap?.clientWidth ?? 0, wrap?.clientHeight ?? 0);
+    });
   const viewRef = useRef(view);
   viewRef.current = view;
   const [popup, setPopup] = useState<{ lat: number; lon: number; event?: MiEvent; cluster?: Cluster } | null>(null);
