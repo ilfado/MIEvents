@@ -35,13 +35,28 @@ export function parseDateTime(value: string | null | undefined): { date: string;
   return { date: `${m[1]}-${m[2]}-${m[3]}`, time: m[4] ? `${m[4]}:${m[5]}` : null };
 }
 
+const MONTH_RE = "(gennaio|febbraio|marzo|aprile|maggio|giugno|luglio|agosto|settembre|ottobre|novembre|dicembre)";
+
 export function extractDateFromText(text: string): string | null {
   let m = text.match(/(\d{4})-(\d{2})-(\d{2})/);
   if (m) return `${m[1]}-${m[2]}-${m[3]}`;
-  m = text.match(/(\d{1,2})\s+(gennaio|febbraio|marzo|aprile|maggio|giugno|luglio|agosto|settembre|ottobre|novembre|dicembre)\s+(\d{4})/i);
-  if (m) return `${m[3]}-${MONTHS[m[2].toLowerCase()]}-${m[1].padStart(2, "0")}`;
   m = text.match(/(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);
   if (m) return `${m[3]}-${m[2].padStart(2, "0")}-${m[1].padStart(2, "0")}`;
+  const monthAlt = MONTH_RE;
+  const range = new RegExp(
+    `dal\\s*(?:l['’])?\\s*(\\d{1,2})\\s*(?:al|a)\\s*(\\d{1,2})\\s+(?:di\\s+)?${monthAlt}\\s+(\\d{4})`,
+    "i",
+  );
+  m = text.match(range);
+  if (m) return `${m[4]}-${MONTHS[m[3].toLowerCase()]}-${m[1].padStart(2, "0")}`;
+  const rangeSameMonth = new RegExp(`dal\\s*(\\d{1,2})\\s*al\\s*(\\d{1,2})\\s*${monthAlt}\\s+(\\d{4})`, "i");
+  m = text.match(rangeSameMonth);
+  if (m) return `${m[3]}-${MONTHS[m[2].toLowerCase()]}-${m[1].padStart(2, "0")}`;
+  const fromSingle = new RegExp(`dal\\s*(?:l['’])?\\s*(\\d{1,2})\\s+${monthAlt}\\s+(\\d{4})`, "i");
+  m = text.match(fromSingle);
+  if (m) return `${m[3]}-${MONTHS[m[2].toLowerCase()]}-${m[1].padStart(2, "0")}`;
+  m = text.match(new RegExp(`(\\d{1,2})\\s+${monthAlt}\\s+(\\d{4})`, "i"));
+  if (m) return `${m[3]}-${MONTHS[m[2].toLowerCase()]}-${m[1].padStart(2, "0")}`;
   return null;
 }
 
