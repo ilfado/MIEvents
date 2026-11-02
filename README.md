@@ -1,6 +1,15 @@
-# MIEvents v1.0
+# MIEvents v1.1
 
-> Prima release stabile (v1.0.0): lista + mappa MapLibre (limiti Nord Italia), filtri rapidi, salvataggio, multi-fonte (open data + JSON-LD + RSS + API key opzionali).
+> v1.1.0 — focus **data quality**: finestra 15gg allineata fra sync e vista, date range dal testo ("dal X al Y"), dizionario venue-pins prima del geocoder, rate-limit free-tier (sync 12h, geocode 15/sync), fix API Ticketmaster/Eventbrite, mappa MapLibre con limiti Nord Italia.
+
+## Changelog v1.1.0 (rispetto a v1.0.0)
+- Data quality: `dal X al Y mese` riconosciuto nei testi RSS; sorgenti Socrata filtrano anche `data_in <= +15gg` (sync = vista).
+- Geo: dizionario `venue-pins` consultato prima di Nominatim (match nome+indirizzo), coordinate persistite in `venues`.
+- Costi: sync ogni 12h, geocoding max 15/sync @1 req/s, delay sorgenti web, API key solo tier free.
+- API fix: Ticketmaster date `YYYY-MM-DDTHH:mm:ssZ`; Eventbrite search gated (`EVENTBRITE_USER_TOKEN` + `EVENTBRITE_SEARCH=1`).
+- Mappa: MapLibre GL `maxBounds` Nord Italia, zoom 7–17; chunk vendor-map lazy (210 kB gzip).
+
+--- lista + mappa MapLibre (limiti Nord Italia), filtri rapidi, salvataggio, multi-fonte (open data + JSON-LD + RSS + API key opzionali).
 
 App per cercare, salvare e visualizzare su **lista e mappa** gli eventi a Milano e in provincia.
 
