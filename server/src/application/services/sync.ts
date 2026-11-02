@@ -3,6 +3,7 @@ import type { EventSource } from "../ports.js";
 import type { EventDraft, SourceResult, SyncOptions, SyncSummary } from "../../core/types.js";
 import { categorize } from "../../core/categorize.js";
 import { syncWindow } from "../../core/types.js";
+import { pinForVenue } from "../../core/venue-pins.js";
 import { lombardiaSagreSource } from "../../adapters/outbound/fetchers/lombardia.js";
 import { lombardiaAreaPubblicaSource } from "../../adapters/outbound/fetchers/lombardia-area-pubblica.js";
 import { tribeSources } from "../../adapters/outbound/fetchers/tribe.js";
@@ -80,8 +81,16 @@ export async function runSync(deps: SyncDeps, opts: SyncOptions = {}): Promise<S
       let lat = d.lat;
       let lon = d.lon;
       if (d.venue || d.address) {
+        const pin = pinForVenue(d.venue, d.address);
+        if (pin && lat == null) {
+          lat = pin.lat;
+          lon = pin.lon;
+        }
         const venueName = d.venue ?? d.address ?? "";
-        const v = deps.venues.upsertVenue({ name: venueName, address: d.address, city: d.city }, fetchedAt);
+        const v = deps.venues.upsertVenue({ name: venueName, address: d.address ?? pin?.address ?? null, city: pin?.city ?? d.city }, fetchedAt);
+        if (pin && !deps.venues.coordsFor(d.venue, d.address)) {
+          deps.venues.setVenueCoords(v.id, pin.lat, pin.lon);
+        }
         if (lat != null && lon != null) {
           if (!deps.venues.coordsFor(d.venue, d.address)) {
             deps.venues.setVenueCoords(v.id, lat, lon);

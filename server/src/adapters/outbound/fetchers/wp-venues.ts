@@ -1,6 +1,6 @@
 import type { EventSource, SourceContext } from "../../../application/ports.js";
 import type { SourceResult } from "../../../core/types.js";
-import { extractDateFromText, stripHtml, todayIso } from "../../../core/text.js";
+import { extractDateFromText, stripHtml } from "../../../core/text.js";
 import { getJson, sleep } from "./http.js";
 
 interface WpItem {
@@ -56,4 +56,3 @@ export const santeriaSource = wpVenueSource({
   sourceId: "wp-santeria",
 });
 
-export const unused = todayIso;

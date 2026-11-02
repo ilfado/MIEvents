@@ -5,6 +5,16 @@ import { stripHtml, parseDateOnly, parseDateTime, extractDateFromText, inMilanoP
 import { extractJsonLdEvents, ldToDraft } from "../core/jsonld.js";
 import { parseRssItems } from "../core/rss.js";
 import { ftsQuery } from "../adapters/outbound/repositories/sqlite.js";
+import { pinForVenue } from "../core/venue-pins.js";
+
+test("pinForVenue: dizionario venue noti, match nome/indirizzo normalizzato", () => {
+  const alca = pinForVenue("Alcatraz Milano");
+  assert.ok(alca && Math.abs(alca.lat - 45.4946) < 0.001);
+  const byAddr = pinForVenue(null, "Via Valtellina 25, Milano");
+  assert.ok(byAddr && Math.abs(byAddr.lat - 45.4946) < 0.001);
+  assert.equal(pinForVenue("venue sconosciuto xyz"), null);
+  assert.equal(pinForVenue(null, null), null);
+});
 
 test("categorize detects categories", () => {
   assert.equal(categorize("Concerto rock al parco"), "concerto");
