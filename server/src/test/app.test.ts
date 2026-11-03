@@ -290,6 +290,7 @@ test("static: CSP con tile OSM in connect-src/img-src, cache immutable su /asset
     const idx = await fetch(`http://127.0.0.1:${port}/`);
     const csp = idx.headers.get("content-security-policy") ?? "";
     assert.ok(csp.includes("connect-src 'self'"));
+    assert.ok(csp.includes("worker-src 'self' blob:"));
     assert.ok(!csp.includes("https://"));
     assert.ok(csp.includes("img-src 'self' data: blob:"));
     assert.equal(idx.headers.get("referrer-policy"), "no-referrer");
