@@ -15,7 +15,7 @@ import { parseIsoDate } from "../../../core/text.js";
 const gzipAsync = promisify(zlib.gzip);
 const brotliAsync = promisify(zlib.brotliCompress);
 
-const CSP = "default-src 'self'; script-src 'self' blob:; worker-src blob:; child-src blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://*.basemaps.cartocdn.com; connect-src 'self' https://*.basemaps.cartocdn.com";
+const CSP = "default-src 'self'; script-src 'self' blob:; worker-src blob:; child-src blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://maps.wikimedia.org; connect-src 'self' https://maps.wikimedia.org";
 
 const SEC_HEADERS: Record<string, string> = {
   "X-Content-Type-Options": "nosniff",
