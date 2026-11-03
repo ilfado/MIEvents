@@ -1,5 +1,8 @@
-# MIEvents v1.2
+# MIEvents v1.3
 
+> v1.3.0 — focus **eventi medio-piccoli a basso costo**: fasce di prezzo (Gratis / fino a 10€ / fino a 20€ / Cari) con filtro API, chip e badge; esclusione di stadi/palazzetti/arene grandi; sorgenti ticketing (Ticketmaster/Eventbrite/Bandsintown) **off di default** (`TICKETING_SOURCES=1` per riattivarle); eventiatmilano con lookback 180gg (recupera anche mostre lunghe già in corso) e paginazione tollerante ai 404; MilanoToday con estrazione link più robusta e prezzo dal testo della pagina evento.
+
+---
 > v1.2.0 — hardening & data quality: sicurezza (maplibre 6.16.0, audit 0 vulns), geo rigorosa (solo provincia MI con coordinate), Santeria doppia sede, sorgenti 0-eventi fixate (ACF/RSS venue-hint), debug API (DEBUG_SOURCES=1).
 
 ## Changelog v1.2.0 (da v1.1.0)
@@ -41,6 +44,8 @@ Vedi `server/src/connectors.md` per il dettaglio campo-per-campo di ogni sito.
 - **Geocoding** degli indirizzi via [Nominatim/OpenStreetMap](https://nominatim.openstreetmap.org/) (rispettando il rate limit di 1 req/s) per la vista mappa.
 - **Filtri**: testo libero (FTS5), comune, tipologia, intervallo di date (validato: `YYYY-MM-DD` reali, altrimenti errore 400), bounding box della mappa, solo salvati. La ricerca vuota ripristina l'elenco completo. **Di default gli eventi passati sono nascosti** (`end < oggi`); `includePast=1` li mostra tutti; un filtro data esplicito mostra anche il passato nel range. La sync dei connettori web prende solo eventi futuri.
 - **Filtri rapidi**: chip **Oggi** e **Questo weekend** (ven–dom in arrivo) per la data, chip **Concerti / Mostre / Spettacoli** per la tipologia; filtri per luogo e date personalizzate nascosti dietro il menu **▼ Filtri**. Input date con font 16px: su mobile si apre il date picker nativo senza zoom automatico.
+- **Fasce di prezzo**: ogni evento porta `priceMin`/`priceMax` (da JSON-LD `offers`, campo `cost` di The Events Calendar, `priceRanges` Ticketmaster o testo tipo "gratis / € 12 / da 5 a 15 euro") e una `priceBand`: `gratis`, `fino10`, `fino20`, `cari` (> 20 €, tag "Cari"). Filtro via API (`?priceBand=cari`), chip dedicate e badge sulla card (GRATIS / prezzo / CARI). Prezzo non pubblicato → banda nulla, evento comunque visibile.
+- **Grandi eventi esclusi**: stadi, palazzetti, arene e grandi forum (San Siro, Unipol/Mediolanum Forum di Assago, Arena Civica…) vengono scartati in fase di sync e nascosti di default (`big=1` nel DB; `?includeBig=1` li mostra). Restano club, teatri, circoli, sagre, mostre e happening a basso costo.
 - **Salvataggio**: ogni evento può essere marcato come salvato (★) e filtrato con "Solo salvati"; lo stato persiste nel DB.
 - **Vista mappa** con Leaflet/OpenStreetMap: marker colorati per categoria, popup con dettagli, filtro per area visibile.
 - **Installabile** come PWA (manifest + icone; service worker con cache versionata e strategia network-first su HTML/asset, così gli aggiornamenti arrivano al primo reload), layout responsive mobile-first.
@@ -88,7 +93,7 @@ sincronizzazione manuale: `POST /api/sync?from=YYYY-MM-DD`.
 
 | Metodo | Endpoint | Descrizione |
 | --- | --- | --- |
-| GET | `/api/events?q=&city=&category=&from=&to=&bbox=&saved=1` | Lista eventi filtrata (`category=saved` = solo salvati) |
+| GET | `/api/events?q=&city=&category=&from=&to=&bbox=&saved=1&priceBand=&includeBig=1` | Lista eventi filtrata (`category=saved` = solo salvati; `priceBand=gratis|fino10|fino20|cari`; di default i grandi eventi sono esclusi, `includeBig=1` li include) |
 | GET | `/api/events/:id` | Dettaglio evento |
 | POST | `/api/events/:id` body `{"saved": bool}` | Salva / desalva |
 | GET | `/api/events/cities` | Elenco comuni presenti |
@@ -122,6 +127,7 @@ npm test               # test unitari e API (node:test, DB in-memory, fetch mock
 | `EVENTBRITE_SEARCH` | `0` | `1` solo se hai user token valido: abilita il connettore search (di default spento) |
 | `BANDSINTWN_APP_ID` | — | API key Bandsintown (da artist.bandsintown.com → Settings → Get API Key). L'API è **artist-only**: il connettore interroga `/artists/{nome}/events` |
 | `BANDSINTWN_ARTISTS` | lista default di ~50 artisti italiani | Elenco artisti separati da virgola per Bandsintown (max 25/sync); gli eventi vengono filtrati per provincia di Milano via coordinate |
+| `TICKETING_SOURCES` | `0` | `1` riattiva le sorgenti ticketing (Ticketmaster/Eventbrite/Bandsintown, servono anche le rispettive chiavi): di default **off** perché producono quasi solo grandi concerti in stadi/palazzetti |
 
 Le API key si impostano **solo come variabili d'ambiente nel deploy** (mai in chat o nel codice): su Render → Settings → Environment → Add Environment Variable. Senza chiavi i connettori restano spenti e gli altri continuano a funzionare.
 

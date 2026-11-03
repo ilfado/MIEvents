@@ -2,8 +2,10 @@ import { createHash } from "node:crypto";
 import { DatabaseSync } from "node:sqlite";
 import fs from "node:fs";
 import path from "node:path";
-import { EVENT_CATEGORIES, type EventCategory, type EventFilters, type EventsResponse, type MiEvent } from "@mievents/shared";
+import { EVENT_CATEGORIES, PRICE_BANDS, type EventCategory, type EventFilters, type EventsResponse, type MiEvent, type PriceBand } from "@mievents/shared";
 import type { EventRepository, VenueRepository } from "../../../application/ports.js";
+import { isBigEvent } from "../../../core/big-events.js";
+import { priceBandOf } from "../../../core/price.js";
 
 export interface EventRow {
   id: string;
@@ -29,6 +31,10 @@ export interface EventRow {
   lon: number | null;
   fetched_at: string;
   saved: number;
+  price_min: number | null;
+  price_max: number | null;
+  price_band: string | null;
+  big: number;
 }
 
 export function openDb(dbPath: string): DatabaseSync {
@@ -61,7 +67,11 @@ export function openDb(dbPath: string): DatabaseSync {
       lat REAL,
       lon REAL,
       fetched_at TEXT NOT NULL,
-      saved INTEGER NOT NULL DEFAULT 0
+      saved INTEGER NOT NULL DEFAULT 0,
+      price_min REAL,
+      price_max REAL,
+      price_band TEXT,
+      big INTEGER NOT NULL DEFAULT 0
     );
     CREATE INDEX IF NOT EXISTS idx_events_start ON events(start);
     CREATE INDEX IF NOT EXISTS idx_events_city ON events(city);
@@ -107,6 +117,29 @@ export function openDb(dbPath: string): DatabaseSync {
   } catch {
     // colonna gi\u00e0 presente
   }
+  for (const col of [
+    "ALTER TABLE events ADD COLUMN price_min REAL",
+    "ALTER TABLE events ADD COLUMN price_max REAL",
+    "ALTER TABLE events ADD COLUMN price_band TEXT",
+    "ALTER TABLE events ADD COLUMN big INTEGER NOT NULL DEFAULT 0",
+  ]) {
+    try {
+      db.exec(col);
+    } catch {
+      // colonna già presente
+    }
+  }
+  const staleBig = db.prepare("SELECT id, venue, address, title FROM events WHERE big = 0").all() as {
+    id: string;
+    venue: string | null;
+    address: string | null;
+    title: string;
+  }[];
+  for (const r of staleBig) {
+    if (isBigEvent(r.venue, r.address, r.title)) {
+      db.prepare("UPDATE events SET big = 1 WHERE id = ?").run(r.id);
+    }
+  }
   return db;
 }
 
@@ -135,6 +168,10 @@ export function rowToEvent(r: EventRow): MiEvent {
     lon: r.lon,
     saved: r.saved === 1,
     fetchedAt: r.fetched_at,
+    priceMin: r.price_min,
+    priceMax: r.price_max,
+    priceBand: (r.price_band as PriceBand | null) ?? null,
+    big: r.big === 1,
   };
 }
 
@@ -176,8 +213,9 @@ export function createEventRepository(db: DatabaseSync): EventRepository {
     INSERT INTO events (
       id, title, description, category, type, start, end, time_start, time_end,
       venue, address, city, province, cap, organizer, website, program_url,
-      source, source_url, lat, lon, fetched_at, saved
-    ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+      source, source_url, lat, lon, fetched_at, saved,
+      price_min, price_max, price_band, big
+    ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
     ON CONFLICT(id) DO UPDATE SET
       title=excluded.title, description=excluded.description, category=excluded.category,
       type=excluded.type, start=excluded.start, end=excluded.end,
@@ -185,14 +223,17 @@ export function createEventRepository(db: DatabaseSync): EventRepository {
       address=excluded.address, city=excluded.city, province=excluded.province,
       cap=excluded.cap, organizer=excluded.organizer, website=excluded.website,
       program_url=excluded.program_url, lat=COALESCE(events.lat, excluded.lat),
-      lon=COALESCE(events.lon, excluded.lon), fetched_at=excluded.fetched_at
+      lon=COALESCE(events.lon, excluded.lon), fetched_at=excluded.fetched_at,
+      price_min=excluded.price_min, price_max=excluded.price_max,
+      price_band=excluded.price_band, big=excluded.big
   `);
   const upsertDraft = db.prepare(`
     INSERT INTO events (
       id, title, description, category, type, start, end, time_start, time_end,
       venue, address, city, province, cap, organizer, website, program_url,
-      source, source_url, lat, lon, fetched_at, saved
-    ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+      source, source_url, lat, lon, fetched_at, saved,
+      price_min, price_max, price_band, big
+    ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
     ON CONFLICT(id) DO UPDATE SET
       title=excluded.title, description=excluded.description, category=excluded.category,
       type=excluded.type, start=excluded.start, end=excluded.end,
@@ -200,16 +241,21 @@ export function createEventRepository(db: DatabaseSync): EventRepository {
       address=excluded.address, city=excluded.city, province=excluded.province,
       cap=excluded.cap, organizer=excluded.organizer, website=excluded.website,
       program_url=excluded.program_url, lat=COALESCE(events.lat, excluded.lat),
-      lon=COALESCE(events.lon, excluded.lon), fetched_at=excluded.fetched_at
+      lon=COALESCE(events.lon, excluded.lon), fetched_at=excluded.fetched_at,
+      price_min=excluded.price_min, price_max=excluded.price_max,
+      price_band=excluded.price_band, big=excluded.big
   `);
   return {
     upsertEvent(e) {
       const existing = db.prepare("SELECT id FROM events WHERE id = ?").get(e.id);
+      const priceBand = priceBandOf(e.priceMin ?? null, e.priceMax ?? null);
+      const big = isBigEvent(e.venue, e.address, e.title) ? 1 : 0;
       upsertDraft.run(
         e.id, e.title, e.description, e.category, e.sourceName, e.start, e.end,
         e.timeStart, e.timeEnd, e.venue, e.address, e.city, "MI", null,
         e.organizer, null, e.url, e.sourceName, e.url,
         e.lat, e.lon, e.fetchedAt, e.saved ? 1 : 0,
+        e.priceMin ?? null, e.priceMax ?? null, priceBand, big,
       );
       return existing ? "updated" : "inserted";
     },
@@ -237,6 +283,14 @@ export function createEventRepository(db: DatabaseSync): EventRepository {
         params.push(f.category);
       }
       if (f.savedOnly || f.category === "saved") clauses.push("saved = 1");
+      if (f.priceBand) {
+        if (!PRICE_BANDS.includes(f.priceBand)) {
+          throw Object.assign(new Error(`Invalid priceBand: ${f.priceBand}`), { statusCode: 400 });
+        }
+        clauses.push("price_band = ?");
+        params.push(f.priceBand);
+      }
+      if (!f.includeBig) clauses.push("big = 0");
       if (f.from) {
         clauses.push("date(start) >= date(?)");
         params.push(parseIsoDate(f.from, "from"));

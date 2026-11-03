@@ -5,6 +5,8 @@ import { stripHtml, parseDateOnly, parseDateTime, extractDateFromText, inMilanoP
 import { extractJsonLdEvents, ldToDraft } from "../core/jsonld.js";
 import { parseRssItems } from "../core/rss.js";
 import { pinForVenue } from "../core/venue-pins.js";
+import { parsePriceText, parseCostField, priceBandOf } from "../core/price.js";
+import { isBigEvent } from "../core/big-events.js";
 import { ftsQuery } from "../adapters/outbound/repositories/sqlite.js";
 
 test("pinForVenue: dizionario venue noti, match nome/indirizzo normalizzato", () => {
@@ -83,6 +85,71 @@ test("parseRssItems", () => {
   assert.equal(items.length, 1);
   assert.equal(items[0].title, "Concerto dei Muse a San Siro Milano 2027");
   assert.deepEqual(items[0].categories, ["concerti"]);
+});
+
+test("parsePriceText: gratis, importi, range, 'da X euro'", () => {
+  assert.deepEqual(parsePriceText("Ingresso gratuito"), { min: 0, max: 0, free: true });
+  assert.deepEqual(parsePriceText("Gratis"), { min: 0, max: 0, free: true });
+  assert.deepEqual(parsePriceText("ingresso libero"), { min: 0, max: 0, free: true });
+  assert.deepEqual(parsePriceText("Biglietto € 12"), { min: 12, max: 12, free: false });
+  assert.deepEqual(parsePriceText("da 5 a 15 euro"), { min: 5, max: 15, free: false });
+  assert.deepEqual(parsePriceText("Ingresso da 20 euro"), { min: 20, max: 20, free: false });
+  assert.deepEqual(parsePriceText("5 - 15 €"), { min: 5, max: 15, free: false });
+  assert.deepEqual(parsePriceText("prezzo 10,50 € e 8 € ridotto"), { min: 8, max: 10.5, free: false });
+  assert.equal(parsePriceText("senza indicazioni di prezzo"), null);
+  assert.equal(parsePriceText("dal 5 al 9 novembre 2026"), null);
+});
+
+test("parseCostField: campo cost TEC", () => {
+  assert.deepEqual(parseCostField("0"), { min: 0, max: 0, free: true });
+  assert.deepEqual(parseCostField("10.00"), { min: 10, max: 10, free: false });
+  assert.deepEqual(parseCostField("5 - 15"), { min: 5, max: 15, free: false });
+  assert.deepEqual(parseCostField("Gratis"), { min: 0, max: 0, free: true });
+  assert.deepEqual(parseCostField("€ 18,50"), { min: 18.5, max: 18.5, free: false });
+  assert.equal(parseCostField(null), null);
+  assert.equal(parseCostField("  "), null);
+});
+
+test("priceBandOf: fasce gratis / fino10 / fino20 / cari", () => {
+  assert.equal(priceBandOf(0, 0), "gratis");
+  assert.equal(priceBandOf(5, 10), "fino10");
+  assert.equal(priceBandOf(10, 20), "fino20");
+  assert.equal(priceBandOf(20, 20), "fino20");
+  assert.equal(priceBandOf(21, null), "cari");
+  assert.equal(priceBandOf(5, 25), "cari");
+  assert.equal(priceBandOf(null, null), null);
+});
+
+test("isBigEvent: stadi, palazzetti, arene, forum; no falsi positivi", () => {
+  assert.ok(isBigEvent("Stadio San Siro", null, "Concerto"));
+  assert.ok(isBigEvent("Unipol Forum di Assago", null, null));
+  assert.ok(isBigEvent("Mediolanum Forum", null, null));
+  assert.ok(isBigEvent(null, null, "Serata al Palazzetto dello Sport"));
+  assert.ok(isBigEvent("Arena Civica", null, null));
+  assert.ok(!isBigEvent("Circolo Magnolia", "Via Circonvallazione Idroscalo 41, Segrate", "DJ set"));
+  assert.ok(!isBigEvent("Teatro Arsenale", null, "Spettacolo"));
+  assert.ok(!isBigEvent("Alcatraz", null, "Concerto"));
+  assert.ok(!isBigEvent(null, null, null));
+});
+
+test("extractLinks: href con apici singoli e doppi", () => {
+  const links = extractLinks("<a href='/eventi/x.html'>a</a><a href=\"/eventi/y.html\">b</a>", "https://www.milanotoday.it/eventi/", /\/eventi\/[^/?#]+\.html/i);
+  assert.equal(links.length, 2);
+});
+
+test("ldToDraft: prezzo da offers JSON-LD e isAccessibleForFree", () => {
+  const paid = extractJsonLdEvents(`<script type="application/ld+json">{"@type":"Event","name":"Show","startDate":"2026-11-10T20:00:00+01:00","url":"https://x/","offers":{"@type":"Offer","price":"15.00","priceCurrency":"EUR"}}</script>`);
+  const d = ldToDraft(paid[0], "s", "S");
+  assert.equal(d!.priceMin, 15);
+  assert.equal(d!.priceMax, 15);
+  const agg = extractJsonLdEvents(`<script type="application/ld+json">{"@type":"Event","name":"Show2","startDate":"2026-11-10","offers":[{"@type":"Offer","price":"5"},{"@type":"Offer","price":"22"}]}</script>`);
+  const d2 = ldToDraft(agg[0], "s", "S");
+  assert.equal(d2!.priceMin, 5);
+  assert.equal(d2!.priceMax, 22);
+  const free = extractJsonLdEvents(`<script type="application/ld+json">{"@type":"Event","name":"Free","startDate":"2026-11-10","isAccessibleForFree":true}</script>`);
+  const df = ldToDraft(free[0], "s", "S");
+  assert.equal(df!.priceMin, 0);
+  assert.equal(df!.priceMax, 0);
 });
 
 test("ftsQuery", () => {

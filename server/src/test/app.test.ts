@@ -165,6 +165,41 @@ test("venueId stable + coordsFor reuse", () => {
   assert.equal(c?.lon, 9.1694);
 });
 
+test("grandi eventi saltati in sync; prezzo dal testo persistito; filtro priceBand; big escluso di default", async () => {
+  const db = openDb(":memory:");
+  const events = createEventRepository(db);
+  const venues = createVenueRepository(db);
+  const big = { ...DRAFT, title: "CONCERTO STADIO", venue: "Stadio San Siro", address: "Piazzale dello Sport 5, Milano", city: "MILANO", url: "https://example.org/sansiro" };
+  const cheap = { ...DRAFT, title: "DJ SET AL CIRCOLO", description: "Ingresso 8 euro", url: "https://example.org/dj", venue: "Circolo X", address: "Via inventata 2, Milano", city: "MILANO" };
+  const free = { ...DRAFT, title: "MOSTRA GRATUITA", description: "Ingresso gratuito", url: "https://example.org/mostra", venue: "Circolo Y", address: "Via inventata 3, Milano", city: "MILANO" };
+  const cari = { ...DRAFT, title: "SHOW CARO", description: "Biglietto da 45 euro", url: "https://example.org/caro", venue: "Circolo Z", address: "Via inventata 4, Milano", city: "MILANO" };
+  const res = await runSync(
+    { events, venues, geocoder: mockGeocoder(), extraSources: [testSource([big, cheap, free, cari])] },
+    { env: {}, syncVenues: false, geocode: false },
+  );
+  assert.equal(res.skipped, 1);
+  assert.equal(res.inserted, 3);
+  const all = events.listEvents({ all: true });
+  assert.equal(all.total, 3);
+  const got = Object.fromEntries(all.events.map((e) => [e.title, e]));
+  assert.equal(got["DJ SET AL CIRCOLO"].priceBand, "fino10");
+  assert.equal(got["DJ SET AL CIRCOLO"].priceMin, 8);
+  assert.equal(got["DJ SET AL CIRCOLO"].priceMax, 8);
+  assert.equal(got["MOSTRA GRATUITA"].priceBand, "gratis");
+  assert.equal(got["SHOW CARO"].priceBand, "cari");
+  assert.equal(got["SHOW CARO"].priceMin, 45);
+  assert.equal(events.listEvents({ all: true, priceBand: "gratis" }).total, 1);
+  assert.equal(events.listEvents({ all: true, priceBand: "fino10" }).total, 1);
+  assert.equal(events.listEvents({ all: true, priceBand: "fino20" }).total, 0);
+  assert.equal(events.listEvents({ all: true, priceBand: "cari" }).total, 1);
+  assert.throws(() => events.listEvents({ all: true, priceBand: "zzz" as never }), /priceBand/);
+  events.upsertEvent({ ...big, id: "big1", category: "concerto", saved: false, fetchedAt: "2026-11-03T00:00:00Z" } as never);
+  assert.equal(events.listEvents({ all: true }).total, 3);
+  const withBig = events.listEvents({ all: true, includeBig: true });
+  assert.equal(withBig.total, 4);
+  assert.equal(withBig.events.find((e) => e.id === "big1")!.big, true);
+});
+
 test("HTTP API end-to-end", async () => {
   const db = openDb(":memory:");
   const events = createEventRepository(db);
@@ -211,6 +246,8 @@ test("HTTP API end-to-end", async () => {
     assert.equal((await get("/api/events/nope")).status, 404);
     const cities = await get("/api/events/cities");
     assert.deepEqual(cities.body.cities, ["SENAGO"]);
+    const badBand = await get("/api/events?priceBand=zzz&all=1");
+    assert.equal(badBand.status, 400);
   } finally {
     server.close();
   }

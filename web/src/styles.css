@@ -112,6 +112,9 @@ body {
 .badge-sport { background: var(--green); }
 .badge-famiglia { background: var(--pink); }
 .badge-altro { background: var(--gray); }
+.badge-price { background: var(--yellow); color: var(--ink); }
+.badge-gratis { background: var(--green); }
+.badge-cari { background: var(--red); }
 
 .card-date { font-size: 0.78rem; font-weight: bold; }
 .card-title { margin: 6px 0 4px; font-size: 1rem; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px; }

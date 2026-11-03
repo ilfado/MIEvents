@@ -52,6 +52,8 @@ La search eventi usa `latLong=45.4642,9.19&radius=100&unit=km` (Milano + provinc
 | Eventbrite | `EVENTBRITE_USER_TOKEN` + `EVENTBRITE_SEARCH=1` | user OAuth token (flusso code+consenso, scope public) — NON la private/api key |
 | Bandsintown | `BANDSINTWN_APP_ID` + opz. `BANDSINTWN_ARTISTS` | artist.bandsintown.com → Settings → General → **Get API Key** |
 
+> **v1.3.0 — ticketing OFF di default**: le sorgenti ticketing producono quasi solo grandi concerti in stadi/palazzetti, quindi `ticketingSources(env)` restituisce `[]` a meno che `TICKETING_SOURCES=1` (oltre alle singole chiavi). Per riattivarle: `TICKETING_SOURCES=1` + la chiave del servizio.
+
 ### Bandsintown — nota importante (API artist-only)
 L'API pubblica ufficiale espone **solo** `/artists/{nome}/events` (e `/artists/{nome}`): **non esiste un endpoint per eventi per città/area** (confermato dalla doc ufficiale e da anni di segnalazioni: `/v4/events?location=...` risponde 403). Quindi il connettore interroga una **lista di artisti** e filtra gli eventi per coordinate dentro la provincia di Milano:
 - default: lista preimpostata di ~50 artisti italiani noti (`DEFAULT_BIT_ARTISTS`);
@@ -88,6 +90,8 @@ categoria, intervallo date, bounding box, salvati.
 - **Formato**: WP REST JSON; campi `title, description, start_date/end_date ("YYYY-MM-DD HH:mm:ss", Europe/Rome), all_day, url, website, venue{venue,address,city,province,zip}, organizer, categories`
 - **Mappatura**: `start_date`→start + timeStart (null se all_day), `venue.venue`→venue, `venue.address/zip/city/province`→address, city default MILANO; filtro finestra `fromDate..toDate`, dedup per `url`, max pagine via `limits["<sourceId>Pages"]` (default 3)
 - **Nota**: l'export `.ics` (`/events.ics`) non è esposto via REST su questi siti (404): si usa solo il JSON
+- **eventiatmilano lookback 180gg**: `tribe-eventiatmilano` interroga con `start_date = from - 180gg` **senza** `end_date` e filtra client-side per sovrapposizione (`end >= from && start <= to`): recupera anche le mostre lunghe iniziate prima della finestra ma ancora in corso (es. "dal 29 settembre al 31 gennaio 2027" visibile a novembre). Paginazione fino a `tribe-eventiatmilanoPages` (default 10) o fine risultati; una pagina fuori range risponde **404** e interrompe il ciclo senza perdere gli eventi già raccolti. Verificato live: page=2 con `end_date=2026-11-18` → 404 `event-archive-page-not-found`.
+- **Costo**: il campo TEC `cost` ("0", "10.00", "5 - 15", "€ 18,50", "Gratis") viene parsato in `priceMin`/`priceMax` (`core/price.ts` → `parseCostField`).
 - **Pin location BASE Milano**: BASE è uno spazio singolo → gli eventi `tribe-base` convergono tutti sul venue `BASE Milano` (Via Tortona 40, 20144 Milano, 45.4509 / 9.1587) con coordinate fisse nel fetcher: 0 chiamate geocoder, 1 sola riga `venues`, marker unico in mappa. Verificato live: 12 eventi, `geocoded: 0`, `venues` = 1 riga.
 - **Stato**: verificato live — 26 eventi (BASE 11, Magazzini 7, Eventi@Milano 8), 0 errori; geo via tabella `venues` (venue name → coords riutilizzate)
 
@@ -97,7 +101,9 @@ categoria, intervallo date, bounding box, salvati.
 - **Formato**: HTML; evento strutturato in `application/ld+json` schema.org `{"@type":"Event"}`
   con `name`, `startDate`, `endDate`, `url`, `location{name,address}`, `description`
 - **Campi mappati**: vedi sopra; `location.address` "Via X, N, Milano" → address + city estratta
-- **Rate limit**: 1 dettaglio ogni ~700 ms, max ~60 pagine dettaglio per sync
+- Estrazione link robusta: `href` con apici singoli o doppi e qualsiasi path `/eventi/.../*.html` (il listing `dal/{from}/al/{to}/` non espone più solo link `href="..."` classici); default 3 pagine di listing (`milanotodayPages`) e 80 dettagli (`milanotodayDetails`).
+- **Prezzo**: da JSON-LD `offers` se presente, altrimenti dal testo della pagina dettaglio ("Gratis", "Ingresso da 20 euro", "€ 12").
+- **Rate limit**: 1 dettaglio ogni ~700 ms, max ~80 pagine dettaglio per sync
 - **Stato**: verificato live (JSON-LD Event presente su pagine evento; listing dal/al restituisce ~39 link/mese)
 
 ## 3. Eventbrite (ATTIVABILE con token — verificato)
@@ -168,6 +174,12 @@ I locali/location sono indicizzati in una tabella dedicata `venues(id, name, add
 - `https://www.concerti-italia.it/concerti/lombardia/milano/` (e feed/sitemap): **202** con challenge SG Captcha.
 - Nessuna rotta pubblica (HTML, RSS, sitemap, wp-json) è accessibile senza browser reale:
   connettori **non implementati** (no scraping di pagine anti-bot, viola ToS e fragile).
+
+## 8. Fasce di prezzo e grandi eventi (v1.3.0)
+
+- **Prezzo evento**: `EventDraft.priceMin/priceMax` da JSON-LD `offers` (`ldPrice` in `core/jsonld.ts`, gestisce `Offer`, array e `AggregateOffer` low/high, `isAccessibleForFree`), campo `cost` TEC (`parseCostField`), `priceRanges` Ticketmaster, e fallback in sync dal testo `titolo + descrizione` (`parsePriceText`: "gratis/ingresso libero" → 0; "€ 12", "12 euro", "da 5 a 15 €", "da 20 euro").
+- **Fasce** (`priceBandOf`): `gratis` (0), `fino10` (max ≤ 10 €), `fino20` (max ≤ 20 €), `cari` (max > 20 € → tag "Cari"); banda nulla se il prezzo non è pubblicato. Colonne `price_min/price_max/price_band` su `events`, filtro `?priceBand=` (validato, 400 se non valido), chip in app, badge sulla card.
+- **Grandi eventi**: `core/big-events.ts` (`isBigEvent`) esclude stadi/palazzetti/arene/forum grandi (San Siro, Unipol/Mediolanum Forum, Arena Civica…) su venue+indirizzo+titolo: scartati in sync (contati in `SyncSummary.skipped`) e con flag `big=1` nel DB; la lista li esclude di default (`?includeBig=1` per vederli). Backfill automatico delle righe esistenti all'apertura del DB.
 
 ## 6. RSS notizie (RIMOSSI dall'indice)
 - I feed generali di MilanoToday / Il Giorno / Arci contengono **cronaca**, non eventi strutturati:

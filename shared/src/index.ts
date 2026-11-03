@@ -24,6 +24,17 @@ export interface GeoPoint {
   lon: number;
 }
 
+export type PriceBand = "gratis" | "fino10" | "fino20" | "cari";
+
+export const PRICE_BANDS: PriceBand[] = ["gratis", "fino10", "fino20", "cari"];
+
+export const PRICE_BAND_LABELS: Record<PriceBand, string> = {
+  gratis: "Gratis",
+  fino10: "Fino a 10€",
+  fino20: "Fino a 20€",
+  cari: "Cari",
+};
+
 export interface MiEvent {
   id: string;
   title: string;
@@ -48,6 +59,10 @@ export interface MiEvent {
   lon: number | null;
   saved: boolean;
   fetchedAt: string;
+  priceMin: number | null;
+  priceMax: number | null;
+  priceBand: PriceBand | null;
+  big: boolean;
 }
 
 export interface EventFilters {
@@ -61,6 +76,8 @@ export interface EventFilters {
   includePast?: boolean;
   all?: boolean;
   geoOnly?: boolean;
+  priceBand?: PriceBand;
+  includeBig?: boolean;
   limit?: number;
   offset?: number;
 }
@@ -76,6 +93,7 @@ export interface SyncResult {
   updated: number;
   geocoded: number;
   venuesSynced: number;
+  skipped: number;
   durationMs: number;
   errors: string[];
 }

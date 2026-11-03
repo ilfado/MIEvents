@@ -33,3 +33,17 @@ const CATEGORY_LABELS: Record<string, string> = {
 export function categoryLabel(c: string): string {
   return CATEGORY_LABELS[c] ?? c;
 }
+
+function fmtEuro(n: number): string {
+  return Number.isInteger(n) ? `€ ${n}` : `€ ${n.toFixed(2).replace(".", ",")}`;
+}
+
+export function formatPrice(e: MiEvent): string | null {
+  if (e.priceBand === "gratis") return "GRATIS";
+  if (e.priceBand === "cari") return "CARI";
+  if (e.priceMin == null && e.priceMax == null) return null;
+  if (e.priceMin != null && e.priceMax != null && e.priceMin !== e.priceMax) {
+    return `${fmtEuro(e.priceMin)}–${fmtEuro(e.priceMax)}`;
+  }
+  return fmtEuro((e.priceMax ?? e.priceMin) as number);
+}

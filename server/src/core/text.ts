@@ -82,8 +82,8 @@ export function absUrl(baseUrl: string, href: string): string {
 
 export function extractLinks(html: string, baseUrl: string, pathRe: RegExp): string[] {
   const urls = new Set<string>();
-  for (const m of html.matchAll(/href="([^"]+)"/g)) {
-    const abs = absUrl(baseUrl, m[1]);
+  for (const m of html.matchAll(/href\s*=\s*(["'])(.*?)\1/g)) {
+    const abs = absUrl(baseUrl, m[2]);
     if (pathRe.test(abs)) urls.add(abs);
   }
   return [...urls];

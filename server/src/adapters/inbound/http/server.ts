@@ -2,7 +2,7 @@ import http from "node:http";
 import fs from "node:fs";
 import path from "node:path";
 import type { DatabaseSync } from "node:sqlite";
-import { EVENT_CATEGORIES, type EventCategory, type EventFilters } from "@mievents/shared";
+import { EVENT_CATEGORIES, type EventCategory, type EventFilters, type PriceBand } from "@mievents/shared";
 import { createEventRepository, createVenueRepository } from "../../outbound/repositories/sqlite.js";
 import type { EventRepository, VenueRepository } from "../../../application/ports.js";
 import { runSync } from "../../../application/services/sync.js";
@@ -47,6 +47,9 @@ function parseFilters(url: URL): EventFilters {
   const bbox = p.get("bbox");
   if (bbox) f.bbox = bbox;
   if (p.get("saved") === "1") f.savedOnly = true;
+  const priceBand = p.get("priceBand");
+  if (priceBand) f.priceBand = priceBand as PriceBand;
+  if (p.get("includeBig") === "1") f.includeBig = true;
   if (p.get("includePast") === "1") f.includePast = true;
   if (p.get("all") === "1") f.all = true;
   if (p.get("geo") === "1") f.geoOnly = true;
