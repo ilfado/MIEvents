@@ -6,6 +6,7 @@ import { extractJsonLdEvents, ldToDraft } from "../core/jsonld.js";
 import { parseRssItems } from "../core/rss.js";
 import { pinForVenue } from "../core/venue-pins.js";
 import { parsePriceText, parseCostField, priceBandOf } from "../core/price.js";
+import { ldPrice } from "../core/jsonld.js";
 import { isBigEvent } from "../core/big-events.js";
 import { ftsQuery } from "../adapters/outbound/repositories/sqlite.js";
 
@@ -98,6 +99,22 @@ test("parsePriceText: gratis, importi, range, 'da X euro'", () => {
   assert.deepEqual(parsePriceText("prezzo 10,50 € e 8 € ridotto"), { min: 8, max: 10.5, free: false });
   assert.equal(parsePriceText("senza indicazioni di prezzo"), null);
   assert.equal(parsePriceText("dal 5 al 9 novembre 2026"), null);
+});
+
+test("parsePriceText: 'gratis' come omaggio (birra/rinfresco) non rende free; outlier bassi scartati", () => {
+  assert.equal(parsePriceText("Avanzi di balera, birra gratis"), null);
+  assert.equal(parsePriceText("Festa con rinfresco gratuito"), null);
+  assert.deepEqual(parsePriceText("Concerto gratis"), { min: 0, max: 0, free: true });
+  assert.deepEqual(parsePriceText("Sagra dell'uva, ingresso gratuito"), { min: 0, max: 0, free: true });
+  assert.deepEqual(parsePriceText("Biglietto 1 euro di prevendita, 45 euro intero"), { min: 45, max: 45, free: false });
+  assert.deepEqual(parsePriceText("Evento a 3 euro"), { min: 3, max: 3, free: false });
+});
+
+test("ldPrice: scarta outlier bassi (es. 1 euro prevendita) quando c'e' un max >= 10", () => {
+  const ev = { offers: [{ price: 1, priceCurrency: "EUR" }, { lowPrice: 35, highPrice: 45, priceCurrency: "EUR" }] };
+  assert.deepEqual(ldPrice(ev as never), { min: 35, max: 45, free: false });
+  const solo = { offers: { price: 1, priceCurrency: "EUR" } };
+  assert.deepEqual(ldPrice(solo as never), { min: 1, max: 1, free: false });
 });
 
 test("parseCostField: campo cost TEC", () => {

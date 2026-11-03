@@ -44,7 +44,7 @@ function normalizeSagreRow(row: SagreRow) {
     clean(row.comune),
     clean(row.prov),
   ]);
-  const id = createHash("sha1").update([title, start, city, clean(row.indirizzo) ?? ""].join("|")).digest("hex").slice(0, 16);
+  const id = createHash("sha1").update(["lombardia-sagre", title, start, city].join("|")).digest("hex").slice(0, 16);
   return {
     sourceId: "lombardia-sagre",
     sourceName: "dati.lombardia.it",

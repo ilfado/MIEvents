@@ -6,7 +6,7 @@ export interface ParsedPrice {
   free: boolean;
 }
 
-const FREE_RE = /\b(gratis|gratuito|gratuita|ingresso libero|entrata libera|partecipazione libera|free entry|free)\b/i;
+const FREE_RE = /\b(?:ingresso|accesso|evento|manifestazione|spettacolo|visita|partecipazione|apertura|concerto|show|dj set|live|mostra|inaugurazione|festa|sagra|mercato|rassegna|serata)\s+(?:\u00e8\s+)?(?:gratis|gratuito|gratuita|libero|libera)\b|\b(?:ingresso libero|entrata libera|partecipazione libera|free entry)\b|^(?:gratis|gratuito|gratuita|free)\b/i;
 const AMOUNT_RE = /(?:€\s*(\d+(?:[.,]\d{1,2})?)|(\d+(?:[.,]\d{1,2})?)\s*(?:€|euro\b|eur\b))/gi;
 const RANGE_RE = /(\d+(?:[.,]\d{1,2})?)\s*(?:-|–|—|\/|\ba\b|\bal\b)\s*(\d+(?:[.,]\d{1,2})?)\s*(?:€|euro\b|eur\b)/i;
 const FROM_RE = /\bda\s+(\d+(?:[.,]\d{1,2})?)\s*(?:€|euro\b|eur\b)/i;
@@ -43,7 +43,9 @@ export function parsePriceText(text: string | null | undefined): ParsedPrice | n
   }
   if (amounts.length === 0) return free ? { min: 0, max: 0, free: true } : null;
   if (free && amounts.every((a) => a === 0)) return { min: 0, max: 0, free: true };
-  return { min: Math.min(...amounts), max: Math.max(...amounts), free: false };
+  const top = Math.max(...amounts);
+  const vals = top >= 10 ? amounts.filter((a) => a >= 5) : amounts;
+  return { min: Math.min(...vals), max: Math.max(...vals), free: false };
 }
 
 export function parseCostField(cost: string | null | undefined): ParsedPrice | null {

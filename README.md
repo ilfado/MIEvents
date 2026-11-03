@@ -1,4 +1,7 @@
-# MIEvents v1.3
+# MIEvents v2.0
+
+> **v2.0.0** — refactoring + hardening + fix (Vedi PR #41-#51): sync con mutex/token, validazione input, key redaction, dedup, compressione gzip/br, tile via proxy `/tiles/` (Wikimedia/OSM fallback, validazione PNG), worker MapLibre con URL reale, CSP restrittiva; fix prezzi (niente 'gratis' da omaggi, outlier 1€ scartati) e dedup sagre doppia location.
+
 
 > Hardening & performance: `POST /api/sync` ora gira in background con mutex (niente sync sovrapposti) e token opzionale `SYNC_TOKEN`; `from` validato (niente injection SoQL/SPARQL); errori HTTP degli adapter con URL redacted (le API key non finiscono più in log/risposte); `_id` dei connettori usato come id evento (niente più collisioni fra sagre stessa giornata); cache venue/coords in-memory durante la sync (niente N+1); Nominatim non cachea più i 429/5xx; migrazioni DB via `PRAGMA user_version`; header di sicurezza + CSP + cache long su `/assets/*`; marker mappa aggiornati per diff; `limit`/`offset` validati; URL eventi sanificati a `http(s)`.
 

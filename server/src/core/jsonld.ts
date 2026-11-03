@@ -71,20 +71,20 @@ export function ldPrice(ev: LdEvent): ParsedPrice | null {
   if (ev.isAccessibleForFree === true) return { min: 0, max: 0, free: true };
   const raw = ev.offers;
   const offers = Array.isArray(raw) ? raw : raw ? [raw] : [];
-  let min: number | null = null;
-  let max: number | null = null;
+  const vals: number[] = [];
   for (const o of offers) {
     if (!o || typeof o !== "object") continue;
     const rec = o as Record<string, unknown>;
     const low = toNum(rec.lowPrice ?? rec.price);
     const high = toNum(rec.highPrice ?? rec.price);
-    if (low == null && high == null) continue;
-    min = min == null ? low : low == null ? min : Math.min(min, low);
-    max = max == null ? high : high == null ? max : Math.max(max, high);
+    if (low != null) vals.push(low);
+    if (high != null && high !== low) vals.push(high);
   }
-  if (min == null && max == null) return null;
-  const lo = min ?? max ?? 0;
-  const hi = max ?? min ?? 0;
+  if (vals.length === 0) return null;
+  const top = Math.max(...vals);
+  const kept = top >= 10 ? vals.filter((v) => v >= 5) : vals;
+  const lo = Math.min(...kept);
+  const hi = Math.max(...kept);
   if (lo === 0 && hi === 0) return { min: 0, max: 0, free: true };
   return { min: lo, max: hi, free: false };
 }
