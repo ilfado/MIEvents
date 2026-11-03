@@ -22,6 +22,8 @@ self.addEventListener("fetch", (event) => {
 
   if (url.pathname.startsWith("/api/")) return;
 
+  if (url.pathname.startsWith("/tiles/")) return;
+
   if (url.pathname === "/" || url.pathname === "/index.html" || url.pathname.startsWith("/assets/")) {
     event.respondWith(
       fetch(event.request)

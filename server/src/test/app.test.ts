@@ -289,9 +289,10 @@ test("static: CSP con tile OSM in connect-src/img-src, cache immutable su /asset
   try {
     const idx = await fetch(`http://127.0.0.1:${port}/`);
     const csp = idx.headers.get("content-security-policy") ?? "";
-    assert.ok(csp.includes("connect-src 'self' https://maps.wikimedia.org"));
-    assert.ok(csp.includes("img-src 'self' data: blob: https://maps.wikimedia.org"));
-    assert.equal(idx.headers.get("referrer-policy"), "strict-origin-when-cross-origin");
+    assert.ok(csp.includes("connect-src 'self'"));
+    assert.ok(!csp.includes("https://"));
+    assert.ok(csp.includes("img-src 'self' data: blob:"));
+    assert.equal(idx.headers.get("referrer-policy"), "no-referrer");
     assert.equal(idx.headers.get("cache-control"), "no-cache");
     const gz = await fetch(`http://127.0.0.1:${port}/assets/app-abc.js`, { headers: { "accept-encoding": "gzip" } });
     assert.equal(gz.headers.get("content-encoding"), "gzip");
@@ -305,5 +306,37 @@ test("static: CSP con tile OSM in connect-src/img-src, cache immutable su /asset
   } finally {
     server.close();
     fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("tile proxy /tiles/{z}/{x}/{y}.png: cache, retina, validazione path, upstream 502", async () => {
+  let calls = 0;
+  const png = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a]);
+  const tileFetcher = (async () => {
+    calls++;
+    return new Response(png, { status: 200, headers: { "Content-Type": "image/png" } });
+  }) as unknown as typeof fetch;
+  const db = openDb(":memory:");
+  const server = createServer({ db, webDist: "/nonexistent", tileFetcher });
+  await new Promise<void>((r) => server.listen(0, r));
+  const port = (server.address() as AddressInfo).port;
+  try {
+    const t1 = await fetch(`http://127.0.0.1:${port}/tiles/10/512/340.png`);
+    assert.equal(t1.status, 200);
+    assert.equal(t1.headers.get("content-type"), "image/png");
+    assert.equal(t1.headers.get("cache-control"), "public, max-age=86400");
+    assert.deepEqual(Buffer.from(await t1.arrayBuffer()), png);
+    const t2 = await fetch(`http://127.0.0.1:${port}/tiles/10/512/340.png`);
+    assert.equal(t2.status, 200);
+    assert.equal(calls, 1);
+    const t3 = await fetch(`http://127.0.0.1:${port}/tiles/10/512/340@2x.png`);
+    assert.equal(t3.status, 200);
+    assert.equal(calls, 2);
+    assert.equal((await fetch(`http://127.0.0.1:${port}/tiles/99/0/0.png`)).status, 400);
+    assert.equal((await fetch(`http://127.0.0.1:${port}/tiles/10/9999/340.png`)).status, 400);
+    assert.equal((await fetch(`http://127.0.0.1:${port}/tiles/10/512/340.jpg`)).status, 404);
+    assert.equal((await fetch(`http://127.0.0.1:${port}/tiles/../../etc.png`)).status, 404);
+  } finally {
+    server.close();
   }
 });

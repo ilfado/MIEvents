@@ -15,11 +15,11 @@ import { parseIsoDate } from "../../../core/text.js";
 const gzipAsync = promisify(zlib.gzip);
 const brotliAsync = promisify(zlib.brotliCompress);
 
-const CSP = "default-src 'self'; script-src 'self' blob:; worker-src blob:; child-src blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://maps.wikimedia.org; connect-src 'self' https://maps.wikimedia.org";
+const CSP = "default-src 'self'; script-src 'self' blob:; worker-src blob:; child-src blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'";
 
 const SEC_HEADERS: Record<string, string> = {
   "X-Content-Type-Options": "nosniff",
-  "Referrer-Policy": "strict-origin-when-cross-origin",
+  "Referrer-Policy": "no-referrer",
 };
 
 const COMPRESSIBLE_EXT = new Set([".html", ".js", ".css", ".json", ".svg", ".webmanifest", ".map"]);
@@ -165,11 +165,51 @@ const MIME: Record<string, string> = {
   ".map": "application/json",
 };
 
-export function createServer(deps: { db: DatabaseSync; webDist: string; events?: EventRepository; venues?: VenueRepository; syncRunner?: SyncRunner }): http.Server {
+export function createServer(deps: { db: DatabaseSync; webDist: string; events?: EventRepository; venues?: VenueRepository; syncRunner?: SyncRunner; tileFetcher?: typeof fetch }): http.Server {
   const events = deps.events ?? createEventRepository(deps.db);
   const venues = deps.venues ?? createVenueRepository(deps.db);
   const webDist = deps.webDist;
   const syncRunner = deps.syncRunner ?? createSyncRunner({ events, venues, geocoder: createNominatimGeocoder() });
+  const tileFetcher = deps.tileFetcher ?? fetch;
+  const tileCache = new Map<string, Buffer>();
+  const TILE_CACHE_MAX = 2000;
+  const TILE_UA = "MIEvents/1.3 (+https://github.com/ilfado/MIEvents; tile proxy)";
+  const sendTile = async (res: http.ServerResponse, z: number, x: number, y: number, retina: string): Promise<void> => {
+    const key = `${z}/${x}/${y}${retina}`;
+    const headers: Record<string, string> = {
+      "Content-Type": "image/png",
+      "Cache-Control": "public, max-age=86400",
+      ...SEC_HEADERS,
+    };
+    const hit = tileCache.get(key);
+    if (hit) {
+      res.writeHead(200, { ...headers, "Content-Length": String(hit.length) });
+      res.end(hit);
+      return;
+    }
+    try {
+      const upstream = await tileFetcher(`https://maps.wikimedia.org/osm-intl/${z}/${x}/${y}${retina}.png`, {
+        headers: { "User-Agent": TILE_UA, Accept: "image/png" },
+        signal: AbortSignal.timeout(10000),
+      });
+      if (!upstream.ok) {
+        res.writeHead(502, headers);
+        res.end();
+        return;
+      }
+      const buf = Buffer.from(await upstream.arrayBuffer());
+      if (tileCache.size >= TILE_CACHE_MAX) {
+        const oldest = tileCache.keys().next().value;
+        if (oldest !== undefined) tileCache.delete(oldest);
+      }
+      tileCache.set(key, buf);
+      res.writeHead(200, { ...headers, "Content-Length": String(buf.length) });
+      res.end(buf);
+    } catch {
+      res.writeHead(504, headers);
+      res.end();
+    }
+  };
 
   return http.createServer(async (req, res) => {
     try {
@@ -263,6 +303,17 @@ export function createServer(deps: { db: DatabaseSync; webDist: string; events?:
           .then((r) => events.setSyncState("last_sync_result", JSON.stringify(r)))
           .catch((err) => console.error("[sync] background failed:", (err as Error).message));
         return await sendJson(req, res, 202, { started: true });
+      }
+
+      const tileMatch = /^\/tiles\/(\d{1,2})\/(\d{1,10})\/(\d{1,10})(@2x)?\.png$/.exec(url.pathname);
+      if (req.method === "GET" && tileMatch) {
+        const z = Number(tileMatch[1]);
+        const x = Number(tileMatch[2]);
+        const y = Number(tileMatch[3]);
+        const retina = tileMatch[4] ?? "";
+        const max = 2 ** z;
+        if (z > 19 || x >= max || y >= max) return await sendJson(req, res, 400, { error: "Invalid tile" });
+        return await sendTile(res, z, x, y, retina);
       }
 
       if (req.method === "GET" && !url.pathname.startsWith("/api/")) {
