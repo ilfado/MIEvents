@@ -62,9 +62,9 @@ export function EventMap({
         sources: {
           osm: {
             type: "raster",
-            tiles: ["https://maps.wikimedia.org/osm-intl/{z}/{x}/{y}{r}.png"],
+            tiles: ["/tiles/{z}/{x}/{y}{r}.png"],
             tileSize: 256,
-            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, tile &copy; <a href="https://maps.wikimedia.org/">Wikimedia Maps</a>',
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &middot; tile &copy; <a href="https://maps.wikimedia.org/">Wikimedia Maps</a> (via proxy)',
           },
         },
         layers: [
