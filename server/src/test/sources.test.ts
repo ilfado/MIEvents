@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { cheventiSource } from "../adapters/outbound/fetchers/cheventi.js";
 import { tribeBaseSource } from "../adapters/outbound/fetchers/tribe.js";
 import { lombardiaAreaPubblicaSource } from "../adapters/outbound/fetchers/lombardia-area-pubblica.js";
+import { lombardiaSagreSource } from "../adapters/outbound/fetchers/lombardia.js";
 import { wikidataSource } from "../adapters/outbound/fetchers/wikidata.js";
 import { newsRssSources } from "../adapters/outbound/fetchers/news-rss.js";
 import { ticketingSources, apiKeysFromEnv, bitArtistsFromEnv, DEFAULT_BIT_ARTISTS } from "../adapters/outbound/fetchers/ticketing.js";
@@ -368,4 +369,20 @@ test("env helpers", () => {
   assert.equal(k.eventbriteUser, undefined);
   assert.deepEqual(bitArtistsFromEnv({ BANDSINTWN_ARTISTS: " Coez , Mahmood ,, " }), ["Coez", "Mahmood"]);
   assert.ok(DEFAULT_BIT_ARTISTS.length >= 40);
+});
+
+test("lombardia-sagre: stessa sagra con doppia location -> stesso _id (no duplicati in DB)", async () => {
+  const base = {
+    istat: null, comune: "SENAGO", prov: "MI", denom: "CALDARROSTE DI SENAGO", tipo: null, n_ediz: null,
+    descriz: null, data_in: "2026-11-07", ora_in: null, data_fine: "2026-11-08", ora_fine: null,
+    cap: "20030", somminis: null, sito_web: null, url_programma: null, nome_org: "Pro Loco",
+  };
+  const rows = [
+    { ...base, toponimo: "Piazza A", indirizzo: "Via Roma", civico: "1" },
+    { ...base, toponimo: "Piazza B", indirizzo: "Via Milano", civico: "22" },
+  ];
+  const mockFetch = (async () => new Response(JSON.stringify(rows), { status: 200, headers: { "Content-Type": "application/json" } })) as unknown as typeof fetch;
+  const res = await lombardiaSagreSource.run(makeCtx({ fetchImpl: mockFetch, fromDate: "2026-11-01", toDate: "2026-11-30" }));
+  assert.equal(res.events.length, 2);
+  assert.equal(res.events[0]._id, res.events[1]._id);
 });

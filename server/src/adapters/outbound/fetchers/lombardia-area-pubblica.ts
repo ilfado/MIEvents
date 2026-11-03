@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { SAGRE_AREA_PUBBLICA_RESOURCE_URL, type SagreAreaPubblicaRow } from "@mievents/shared";
 import type { EventSource } from "../../../application/ports.js";
 import type { SourceResult } from "../../../core/types.js";
@@ -75,5 +76,6 @@ function normalizeRow(row: SagreAreaPubblicaRow): SourceResult["events"][number]
     lat: point?.lat ?? null,
     lon: point?.lon ?? null,
     organizer: clean(row.nome_org),
+    _id: createHash("sha1").update(["lombardia-area-pubblica", title, start, city].join("|")).digest("hex").slice(0, 16),
   };
 }
