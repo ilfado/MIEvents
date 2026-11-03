@@ -1,5 +1,6 @@
 import type { EventSource } from "../../../application/ports.js";
 import type { SourceResult } from "../../../core/types.js";
+import { inMilanoProvince } from "../../../core/text.js";
 import { getJsonRetryable as getJson } from "./http.js";
 
 const ENDPOINT = "https://qlever.dev/api/wikidata";
@@ -7,18 +8,22 @@ const ENDPOINT = "https://qlever.dev/api/wikidata";
 export const wikidataSource: EventSource = {
   id: "wikidata",
   async run(ctx): Promise<SourceResult> {
-    const limit = ctx.limits["wikidataLimit"] ?? 100;
+    const limit = ctx.limits["wikidataLimit"] ?? 300;
+    const endExclusive = new Date(`${ctx.toDate}T00:00:00Z`);
+    endExclusive.setUTCDate(endExclusive.getUTCDate() + 1);
     const query = `PREFIX wd: <http://www.wikidata.org/entity/>
 PREFIX wdt: <http://www.wikidata.org/prop/direct/>
 PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
 SELECT ?event ?label ?coord ?date ?end WHERE {
   ?event wdt:P31/wdt:P279* wd:Q1656682 .
   ?event wdt:P625 ?coord .
-  ?event wdt:P131* wd:Q490 .
-  OPTIONAL { ?event wdt:P585 ?date }
+  ?event wdt:P585 ?date .
+  FILTER(?date >= "${ctx.fromDate}T00:00:00Z"^^xsd:dateTime && ?date < "${endExclusive.toISOString().slice(0, 19)}Z"^^xsd:dateTime)
   OPTIONAL { ?event wdt:P582 ?end }
   OPTIONAL { ?event rdfs:label ?label . FILTER(LANG(?label) = "it") }
-} ORDER BY DESC(?date) LIMIT ${limit}`;
+  OPTIONAL { ?event wdt:P131 ?admin . ?admin wdt:P17 wd:Q38 }
+} ORDER BY ?date LIMIT ${limit}`;
     const json = (await getJson(ctx.fetchImpl, `${ENDPOINT}?query=${encodeURIComponent(query)}`)) as {
       results?: { bindings: Array<Record<string, { value: string }>> };
     };
@@ -31,6 +36,7 @@ SELECT ?event ?label ?coord ?date ?end WHERE {
       const coord = b.coord?.value.match(/POINT\(([-\d.]+) ([-\d.]+)\)/);
       const lon = coord ? Number(coord[1]) : null;
       const lat = coord ? Number(coord[2]) : null;
+      if (lat === null || lon === null || !Number.isFinite(lat) || !Number.isFinite(lon) || !inMilanoProvince(lat, lon)) continue;
       const date = b.date?.value.slice(0, 10);
       if (!date || date < ctx.fromDate || date > ctx.toDate) continue;
       events.push({
