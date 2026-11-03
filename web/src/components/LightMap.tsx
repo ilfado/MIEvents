@@ -5,7 +5,7 @@ import { categoryLabel, formatDateRange } from "../format.js";
 const MILAN = { lat: 45.4642, lon: 9.19 };
 const MIN_ZOOM = 7;
 const MAX_ZOOM = 17;
-const NORD_ITALIA = { north: 47.1, south: 43.5, west: 6.6, east: 13.7 };
+const NORD_ITALIA = { north: 47.1, south: 43.5, west: 6.86, east: 13.8 };
 const TILE_CACHE_MAX = 400;
 
 interface View {
