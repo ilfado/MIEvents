@@ -1,5 +1,14 @@
-# MIEvents v1.1
+# MIEvents v1.2
 
+> v1.2.0 — hardening & data quality: sicurezza (maplibre 6.16.0, audit 0 vulns), geo rigorosa (solo provincia MI con coordinate), Santeria doppia sede, sorgenti 0-eventi fixate (ACF/RSS venue-hint), debug API (DEBUG_SOURCES=1).
+
+## Changelog v1.2.0 (da v1.1.0)
+- Security: maplibre-gl 6.16.0 (GHSA-jrc7-96c5-q579), `npm audit` 0; review XSS/SQL/path/secrets.
+- Geo strict: Ticketmaster/Eventbrite/Bandsintown richiedono coordinate in box MI; venue-pins con match per token (Santeria Toscana 31 + Paladini 8, Unipol Dome fix).
+- Data yield: Santeria da ACF `all_meta`; RSS con venue-hint e pubDate fallback; Wikidata senza filtro data server-side.
+- Debug: `GET /api/debug/source?source=...` con `DEBUG_SOURCES=1`; log `[sync]` per sorgente; retry backoff su 429.
+
+---
 > v1.1.0 — focus **data quality**: finestra 15gg allineata fra sync e vista, date range dal testo ("dal X al Y"), dizionario venue-pins prima del geocoder, rate-limit free-tier (sync 12h, geocode 15/sync), fix API Ticketmaster/Eventbrite, mappa MapLibre con limiti Nord Italia.
 
 ## Changelog v1.1.0 (rispetto a v1.0.0)
