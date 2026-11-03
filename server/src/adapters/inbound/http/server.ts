@@ -15,7 +15,7 @@ import { parseIsoDate } from "../../../core/text.js";
 const gzipAsync = promisify(zlib.gzip);
 const brotliAsync = promisify(zlib.brotliCompress);
 
-const CSP = "default-src 'self'; script-src 'self' blob:; worker-src blob:; child-src blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'";
+const CSP = "default-src 'self'; script-src 'self' blob:; worker-src 'self' blob:; child-src 'self' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'";
 
 const SEC_HEADERS: Record<string, string> = {
   "X-Content-Type-Options": "nosniff",
