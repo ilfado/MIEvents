@@ -122,6 +122,15 @@ export function normalizeDate(value: string | null | undefined): string | null {
   return null;
 }
 
+export function normKey(s: string): string {
+  return s
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
 export function joinAddress(segments: Array<string | null | undefined>): string | null {
   const parts = segments.map((s) => clean(s)).filter((s): s is string => s !== null);
   return parts.length > 0 ? parts.join(", ") : null;

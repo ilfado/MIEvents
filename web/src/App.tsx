@@ -18,7 +18,6 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [filterByArea, setFilterByArea] = useState(false);
-  const [showStreets, setShowStreets] = useState(true);
   const bboxRef = useRef<string | undefined>(undefined);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
@@ -62,9 +61,15 @@ export default function App() {
 
   const onSelectFromMap = useCallback((e: MiEvent) => {
     setSelectedId(e.id);
-    const el = listRef.current?.querySelector(`[data-event-id="${e.id}"]`);
-    el?.scrollIntoView({ behavior: "smooth", block: "center" });
-  }, [view]);
+  }, []);
+
+  const onShowInList = useCallback((e: MiEvent) => {
+    setSelectedId(e.id);
+    setView("list");
+    setTimeout(() => {
+      listRef.current?.querySelector(`[data-event-id="${e.id}"]`)?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 80);
+  }, []);
 
   const onToggleSaved = useCallback(async (e: MiEvent) => {
     try {
@@ -154,11 +159,11 @@ export default function App() {
               events={events}
               selectedId={selectedId}
               onSelect={onSelectFromMap}
+              onShowInList={onShowInList}
+              onBackgroundTap={() => setSelectedId(null)}
               onBbox={onBbox}
               filterByArea={filterByArea}
               onToggleArea={onToggleArea}
-              showStreets={showStreets}
-              onToggleStreets={() => setShowStreets((v) => !v)}
             />
           </ErrorBoundary>
           {selected && (

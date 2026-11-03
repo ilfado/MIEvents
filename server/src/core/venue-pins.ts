@@ -70,6 +70,10 @@ const PINS: [string, VenuePinPoint][] = [
   ["idroscalo", { lat: 45.4789, lon: 9.2389, address: "Via Circonvallazione Idroscalo, Segrate (MI)", city: "SEGRATE" }],
   ["cascina nascosta", { lat: 45.4856, lon: 9.1711, address: "Via Tartaglia 20, 20154 Milano", city: "MILANO" }],
   ["mare culturale urbano", { lat: 45.4856, lon: 9.1711, address: "Via Tartaglia 20, 20154 Milano", city: "MILANO" }],
+  ["auditorium san fedele", { lat: 45.4663, lon: 9.1920, address: "Piazza San Fedele 4, 20121 Milano", city: "MILANO" }],
+  ["san fedele", { lat: 45.4663, lon: 9.1920, address: "Piazza San Fedele 4, 20121 Milano", city: "MILANO" }],
+  ["darsena", { lat: 45.4515, lon: 9.1735, address: "Darsena, Porta Ticinese, 20143 Milano", city: "MILANO" }],
+  ["darsena milano", { lat: 45.4515, lon: 9.1735, address: "Darsena, Porta Ticinese, 20143 Milano", city: "MILANO" }],
 ];
 
 const PIN_INDEX = new Map(PINS.map(([key, pin]) => [norm(key), pin]));

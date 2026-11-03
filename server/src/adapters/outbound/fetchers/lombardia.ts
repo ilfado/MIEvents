@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { SAGRE_RESOURCE_URL, type SagreRow } from "@mievents/shared";
 import type { EventSource } from "../../../application/ports.js";
 import type { SourceResult } from "../../../core/types.js";
-import { clean, joinAddress, normalizeDate } from "../../../core/text.js";
+import { clean, joinAddress, normKey, normalizeDate } from "../../../core/text.js";
 import { getJson } from "./http.js";
 
 const PAGE = 500;
@@ -44,7 +44,7 @@ function normalizeSagreRow(row: SagreRow) {
     clean(row.comune),
     clean(row.prov),
   ]);
-  const id = createHash("sha1").update(["lombardia-sagre", title, start, city].join("|")).digest("hex").slice(0, 16);
+  const id = createHash("sha1").update(["lombardia-sagre", normKey(title), start].join("|")).digest("hex").slice(0, 16);
   return {
     sourceId: "lombardia-sagre",
     sourceName: "dati.lombardia.it",
