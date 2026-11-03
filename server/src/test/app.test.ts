@@ -289,8 +289,9 @@ test("static: CSP con tile OSM in connect-src/img-src, cache immutable su /asset
   try {
     const idx = await fetch(`http://127.0.0.1:${port}/`);
     const csp = idx.headers.get("content-security-policy") ?? "";
-    assert.ok(csp.includes("connect-src 'self' https://tile.openstreetmap.org"));
-    assert.ok(csp.includes("img-src 'self' data: blob: https://tile.openstreetmap.org"));
+    assert.ok(csp.includes("connect-src 'self' https://*.basemaps.cartocdn.com"));
+    assert.ok(csp.includes("img-src 'self' data: blob: https://*.basemaps.cartocdn.com"));
+    assert.equal(idx.headers.get("referrer-policy"), "strict-origin-when-cross-origin");
     assert.equal(idx.headers.get("cache-control"), "no-cache");
     const gz = await fetch(`http://127.0.0.1:${port}/assets/app-abc.js`, { headers: { "accept-encoding": "gzip" } });
     assert.equal(gz.headers.get("content-encoding"), "gzip");
