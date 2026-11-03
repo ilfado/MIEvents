@@ -32,35 +32,28 @@ function unproject(x: number, y: number, zoom: number): { lat: number; lon: numb
 
 function clampView(v: View, w = 0, h = 0): View {
   let zoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, v.zoom));
-  if (w > 0 && h > 0) {
-    const maxLatSpan = NORD_ITALIA.north - NORD_ITALIA.south;
-    const maxLonSpan = NORD_ITALIA.east - NORD_ITALIA.west;
-    const spanAt = (z: number) => {
-      const c = project(v.lat, v.lon, z);
-      const nw = unproject(c.x - w / 2, c.y - h / 2, z);
-      const se = unproject(c.x + w / 2, c.y + h / 2, z);
-      return { latSpan: nw.lat - se.lat, lonSpan: se.lon - nw.lon };
-    };
-    // zoom minimo dinamico: la viewport deve stare dentro il Nord Italia (come maxBounds di MapLibre)
-    while (zoom < MAX_ZOOM) {
-      const sp = spanAt(zoom);
-      if (sp.latSpan <= maxLatSpan && sp.lonSpan <= maxLonSpan) break;
-      zoom += 0.25;
-    }
-    const c = project(v.lat, v.lon, zoom);
-    const nw = unproject(c.x - w / 2, c.y - h / 2, zoom);
-    const se = unproject(c.x + w / 2, c.y + h / 2, zoom);
-    const latSpan = nw.lat - se.lat;
-    const lonSpan = se.lon - nw.lon;
-    let lat = v.lat;
-    let lon = v.lon;
-    if (latSpan >= maxLatSpan) lat = (NORD_ITALIA.north + NORD_ITALIA.south) / 2;
-    else lat = Math.min(NORD_ITALIA.north - latSpan / 2, Math.max(NORD_ITALIA.south + latSpan / 2, lat));
-    if (lonSpan >= maxLonSpan) lon = (NORD_ITALIA.east + NORD_ITALIA.west) / 2;
-    else lon = Math.min(NORD_ITALIA.east - lonSpan / 2, Math.max(NORD_ITALIA.west + lonSpan / 2, lon));
-    return { lat, lon, zoom };
+  if (w <= 0 || h <= 0) return { lat: v.lat, lon: v.lon, zoom };
+  const maxLatSpan = NORD_ITALIA.north - NORD_ITALIA.south;
+  const maxLonSpan = NORD_ITALIA.east - NORD_ITALIA.west;
+  let lat = Math.min(NORD_ITALIA.north, Math.max(NORD_ITALIA.south, v.lat));
+  let lon = Math.min(NORD_ITALIA.east, Math.max(NORD_ITALIA.west, v.lon));
+  const spanAt = (z: number) => {
+    const c = project(lat, lon, z);
+    const nw = unproject(c.x - w / 2, c.y - h / 2, z);
+    const se = unproject(c.x + w / 2, c.y + h / 2, z);
+    return { latSpan: nw.lat - se.lat, lonSpan: se.lon - nw.lon };
+  };
+  while (zoom < MAX_ZOOM) {
+    const sp = spanAt(zoom);
+    if (sp.latSpan <= maxLatSpan && sp.lonSpan <= maxLonSpan) break;
+    zoom += 0.25;
   }
-  return { lat: v.lat, lon: v.lon, zoom };
+  const sp = spanAt(zoom);
+  if (sp.latSpan >= maxLatSpan) lat = (NORD_ITALIA.north + NORD_ITALIA.south) / 2;
+  else lat = Math.min(NORD_ITALIA.north - sp.latSpan / 2, Math.max(NORD_ITALIA.south + sp.latSpan / 2, lat));
+  if (sp.lonSpan >= maxLonSpan) lon = (NORD_ITALIA.east + NORD_ITALIA.west) / 2;
+  else lon = Math.min(NORD_ITALIA.east - sp.lonSpan / 2, Math.max(NORD_ITALIA.west + sp.lonSpan / 2, lon));
+  return { lat, lon, zoom };
 }
 
 function categoryColor(category: string): string {
@@ -155,6 +148,8 @@ export function LightMap({
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
+  const pointersRef0 = useRef<Map<number, { x: number; y: number }>>(new Map());
+  const pointersRef = pointersRef0;
   const [view, setViewRaw] = useState<View>({ lat: MILAN.lat, lon: MILAN.lon, zoom: 10 });
   const setView = (u: View | ((v: View) => View)) =>
     setViewRaw((v) => {
@@ -162,7 +157,7 @@ export function LightMap({
       return clampView(typeof u === "function" ? u(v) : u, wrap?.clientWidth ?? 0, wrap?.clientHeight ?? 0);
     });
   const viewRef = useRef(view);
-  viewRef.current = view;
+  if (pointersRef0.current.size === 0) viewRef.current = view;
   const rafRef = useRef(0);
   const scheduleDraw = useCallback(() => {
     if (rafRef.current) return;
@@ -197,7 +192,7 @@ export function LightMap({
   const [tilesVersion, setTilesVersion] = useState(0);
   const bumpTiles = useCallback(() => setTilesVersion((n) => n + 1), []);
 
-  const pointersRef = useRef<Map<number, { x: number; y: number }>>(new Map());
+
   const gestureRef = useRef<
     | { kind: "pan"; startX: number; startY: number; lat0: number; lon0: number; zoom0: number; moved: boolean }
     | { kind: "pinch"; d0: number; zoom0: number; lat0: number; lon0: number; mid0: { x: number; y: number } }
@@ -248,7 +243,8 @@ export function LightMap({
     if (!ctx) return;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.imageSmoothingEnabled = false;
-    const v = viewRef.current;
+    const v = clampView(viewRef.current, w, h);
+    viewRef.current = v;
 
     ctx.fillStyle = "#f2f0ea";
     ctx.fillRect(0, 0, w, h);
