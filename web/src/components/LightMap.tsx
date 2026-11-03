@@ -31,23 +31,36 @@ function unproject(x: number, y: number, zoom: number): { lat: number; lon: numb
 }
 
 function clampView(v: View, w = 0, h = 0): View {
-  const zoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, v.zoom));
-  let lat = v.lat;
-  let lon = v.lon;
+  let zoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, v.zoom));
   if (w > 0 && h > 0) {
-    const c = project(lat, lon, zoom);
+    const maxLatSpan = NORD_ITALIA.north - NORD_ITALIA.south;
+    const maxLonSpan = NORD_ITALIA.east - NORD_ITALIA.west;
+    const spanAt = (z: number) => {
+      const c = project(v.lat, v.lon, z);
+      const nw = unproject(c.x - w / 2, c.y - h / 2, z);
+      const se = unproject(c.x + w / 2, c.y + h / 2, z);
+      return { latSpan: nw.lat - se.lat, lonSpan: se.lon - nw.lon };
+    };
+    // zoom minimo dinamico: la viewport deve stare dentro il Nord Italia (come maxBounds di MapLibre)
+    while (zoom < MAX_ZOOM) {
+      const sp = spanAt(zoom);
+      if (sp.latSpan <= maxLatSpan && sp.lonSpan <= maxLonSpan) break;
+      zoom += 0.25;
+    }
+    const c = project(v.lat, v.lon, zoom);
     const nw = unproject(c.x - w / 2, c.y - h / 2, zoom);
     const se = unproject(c.x + w / 2, c.y + h / 2, zoom);
     const latSpan = nw.lat - se.lat;
     const lonSpan = se.lon - nw.lon;
-    const maxLatSpan = NORD_ITALIA.north - NORD_ITALIA.south;
-    const maxLonSpan = NORD_ITALIA.east - NORD_ITALIA.west;
+    let lat = v.lat;
+    let lon = v.lon;
     if (latSpan >= maxLatSpan) lat = (NORD_ITALIA.north + NORD_ITALIA.south) / 2;
     else lat = Math.min(NORD_ITALIA.north - latSpan / 2, Math.max(NORD_ITALIA.south + latSpan / 2, lat));
     if (lonSpan >= maxLonSpan) lon = (NORD_ITALIA.east + NORD_ITALIA.west) / 2;
     else lon = Math.min(NORD_ITALIA.east - lonSpan / 2, Math.max(NORD_ITALIA.west + lonSpan / 2, lon));
+    return { lat, lon, zoom };
   }
-  return { lat, lon, zoom };
+  return { lat: v.lat, lon: v.lon, zoom };
 }
 
 function categoryColor(category: string): string {
@@ -150,6 +163,36 @@ export function LightMap({
     });
   const viewRef = useRef(view);
   viewRef.current = view;
+  const rafRef = useRef(0);
+  const scheduleDraw = useCallback(() => {
+    if (rafRef.current) return;
+    rafRef.current = requestAnimationFrame(() => {
+      rafRef.current = 0;
+      drawRef.current();
+    });
+  }, []);
+  const drawRef = useRef<() => void>(() => {});
+  const setViewDirect = (u: View | ((v: View) => View)) => {
+    const wrap = wrapRef.current;
+    const next = clampView(typeof u === "function" ? u(viewRef.current) : u, wrap?.clientWidth ?? 0, wrap?.clientHeight ?? 0);
+    viewRef.current = next;
+    scheduleDraw();
+  };
+  const applyZoomAtDirect = (newZoom: number, px: number, py: number) => {
+    setViewDirect((v) => {
+      const zoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, newZoom));
+      if (zoom === v.zoom) return v;
+      const wrap = wrapRef.current;
+      const w = wrap?.clientWidth ?? 0;
+      const h = wrap?.clientHeight ?? 0;
+      const center = project(v.lat, v.lon, v.zoom);
+      const scale = 2 ** (zoom - v.zoom);
+      const nx = center.x + (px - w / 2) * (1 - 1 / scale);
+      const ny = center.y + (py - h / 2) * (1 - 1 / scale);
+      const geo = unproject(nx, ny, zoom);
+      return { lat: geo.lat, lon: geo.lon, zoom };
+    });
+  };
   const [popup, setPopup] = useState<{ lat: number; lon: number; event?: MiEvent; cluster?: Cluster } | null>(null);
   const [tilesVersion, setTilesVersion] = useState(0);
   const bumpTiles = useCallback(() => setTilesVersion((n) => n + 1), []);
@@ -285,6 +328,7 @@ export function LightMap({
   }, [clusters, selectedId, showStreets, tilesVersion, bumpTiles]);
 
   useEffect(() => {
+    drawRef.current = draw;
     draw();
   }, [draw]);
 
@@ -344,7 +388,7 @@ export function LightMap({
       const v = viewRef.current;
       gestureRef.current = {
         kind: "pinch",
-        d0: Math.max(10, Math.hypot(a.x - b.x, a.y - b.y)),
+        d0: Math.max(30, Math.hypot(a.x - b.x, a.y - b.y)),
         zoom0: v.zoom,
         lat0: v.lat,
         lon0: v.lon,
@@ -368,10 +412,10 @@ export function LightMap({
 
     if (g.kind === "pinch" && pointersRef.current.size >= 2) {
       const [a, b] = [...pointersRef.current.values()];
-      const d = Math.max(10, Math.hypot(a.x - b.x, a.y - b.y));
+      const d = Math.max(30, Math.hypot(a.x - b.x, a.y - b.y));
       const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
       const newZoom = g.zoom0 + Math.log2(d / g.d0);
-      applyZoomAt(newZoom, mid.x, mid.y);
+      applyZoomAtDirect(newZoom, mid.x, mid.y);
       return;
     }
 
@@ -385,7 +429,7 @@ export function LightMap({
       const h = wrap?.clientHeight ?? 0;
       const center = project(g.lat0, g.lon0, g.zoom0);
       const nw = unproject(center.x - dx, center.y - dy, g.zoom0);
-      setView((v) => ({ ...v, lat: nw.lat, lon: nw.lon }));
+      setViewDirect((v) => ({ ...v, lat: nw.lat, lon: nw.lon }));
     }
   };
 
@@ -397,6 +441,7 @@ export function LightMap({
     if (pointersRef.current.size === 0) {
       const g = gestureRef.current;
       gestureRef.current = null;
+      setViewRaw(viewRef.current);
       if (hadPinch || !wasTap || !g) return;
       const rect = e.currentTarget.getBoundingClientRect();
       const hit = pick(e.clientX - rect.left, e.clientY - rect.top);
