@@ -1,4 +1,5 @@
 export interface EventDraft {
+  _id?: string;
   sourceId: string;
   sourceName: string;
   title: string;

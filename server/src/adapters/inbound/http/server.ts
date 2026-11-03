@@ -1,15 +1,28 @@
 import http from "node:http";
 import fs from "node:fs";
 import path from "node:path";
+import { timingSafeEqual } from "node:crypto";
 import type { DatabaseSync } from "node:sqlite";
 import { EVENT_CATEGORIES, type EventCategory, type EventFilters, type PriceBand } from "@mievents/shared";
 import { createEventRepository, createVenueRepository } from "../../outbound/repositories/sqlite.js";
 import type { EventRepository, VenueRepository } from "../../../application/ports.js";
-import { runSync } from "../../../application/services/sync.js";
+import { createSyncRunner, type SyncRunner } from "../../../application/services/sync.js";
 import { createNominatimGeocoder } from "../../outbound/geo/nominatim.js";
+import { parseIsoDate } from "../../../core/text.js";
+
+const CSP = "default-src 'self'; script-src 'self' blob:; worker-src blob:; child-src blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://tile.openstreetmap.org; connect-src 'self'";
+
+const SEC_HEADERS: Record<string, string> = {
+  "X-Content-Type-Options": "nosniff",
+  "Referrer-Policy": "no-referrer",
+};
 
 function sendJson(res: http.ServerResponse, status: number, body: unknown): void {
-  res.writeHead(status, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" });
+  res.writeHead(status, {
+    "Content-Type": "application/json; charset=utf-8",
+    "Cache-Control": "no-store",
+    ...SEC_HEADERS,
+  });
   res.end(JSON.stringify(body));
 }
 
@@ -20,7 +33,7 @@ function readBody(req: http.IncomingMessage, limit = 64 * 1024): Promise<string>
     req.on("data", (chunk: Buffer) => {
       size += chunk.length;
       if (size > limit) {
-        reject(new Error("Body too large"));
+        reject(Object.assign(new Error("Body too large"), { statusCode: 413 }));
         req.destroy();
         return;
       }
@@ -54,10 +67,24 @@ function parseFilters(url: URL): EventFilters {
   if (p.get("all") === "1") f.all = true;
   if (p.get("geo") === "1") f.geoOnly = true;
   const limit = p.get("limit");
-  if (limit) f.limit = Number(limit);
+  if (limit != null) {
+    const n = Number(limit);
+    if (!Number.isInteger(n) || n < 1) throw Object.assign(new Error("Invalid limit, expected a positive integer"), { statusCode: 400 });
+    f.limit = n;
+  }
   const offset = p.get("offset");
-  if (offset) f.offset = Number(offset);
+  if (offset != null) {
+    const n = Number(offset);
+    if (!Number.isInteger(n) || n < 0) throw Object.assign(new Error("Invalid offset, expected a non-negative integer"), { statusCode: 400 });
+    f.offset = n;
+  }
   return f;
+}
+
+function tokenMatches(provided: string, expected: string): boolean {
+  const a = Buffer.from(provided);
+  const b = Buffer.from(expected);
+  return a.length === b.length && timingSafeEqual(a, b);
 }
 
 const MIME: Record<string, string> = {
@@ -72,10 +99,11 @@ const MIME: Record<string, string> = {
   ".map": "application/json",
 };
 
-export function createServer(deps: { db: DatabaseSync; webDist: string; events?: EventRepository; venues?: VenueRepository }): http.Server {
+export function createServer(deps: { db: DatabaseSync; webDist: string; events?: EventRepository; venues?: VenueRepository; syncRunner?: SyncRunner }): http.Server {
   const events = deps.events ?? createEventRepository(deps.db);
   const venues = deps.venues ?? createVenueRepository(deps.db);
   const webDist = deps.webDist;
+  const syncRunner = deps.syncRunner ?? createSyncRunner({ events, venues, geocoder: createNominatimGeocoder() });
 
   return http.createServer(async (req, res) => {
     try {
@@ -107,7 +135,12 @@ export function createServer(deps: { db: DatabaseSync; webDist: string; events?:
 
       if (url.pathname.startsWith("/api/events/") && req.method === "POST") {
         const id = decodeURIComponent(url.pathname.slice("/api/events/".length));
-        const body = JSON.parse((await readBody(req)) || "{}") as { saved?: boolean };
+        let body: { saved?: boolean };
+        try {
+          body = JSON.parse((await readBody(req)) || "{}") as { saved?: boolean };
+        } catch {
+          return sendJson(res, 400, { error: "Invalid JSON body" });
+        }
         if (typeof body.saved !== "boolean") return sendJson(res, 400, { error: "Body must be { saved: boolean }" });
         if (!events.setSaved(id, body.saved)) return sendJson(res, 404, { error: "Event not found" });
         return sendJson(res, 200, events.getEvent(id));
@@ -116,8 +149,9 @@ export function createServer(deps: { db: DatabaseSync; webDist: string; events?:
       if (route === "GET /api/debug/source" && process.env.DEBUG_SOURCES === "1") {
         const name = url.searchParams.get("source") ?? "";
         const { defaultSources } = await import("../../../application/services/sync.js");
-        const src = defaultSources(process.env).find((s) => s.id === name);
-        if (!src) return sendJson(res, 404, { error: "unknown source", available: defaultSources(process.env).map((s) => s.id) });
+        const sources = defaultSources(process.env);
+        const src = sources.find((s) => s.id === name);
+        if (!src) return sendJson(res, 404, { error: "unknown source", available: sources.map((s) => s.id) });
         const ctx = {
           fetchImpl: fetch,
           fromDate: new Date().toISOString().slice(0, 10),
@@ -141,32 +175,66 @@ export function createServer(deps: { db: DatabaseSync; webDist: string; events?:
       }
 
       if (route === "POST /api/sync") {
-        const result = await runSync(
-          { events, venues, geocoder: createNominatimGeocoder() },
-          { fromDate: url.searchParams.get("from") ?? undefined },
-        );
-        return sendJson(res, 200, result);
+        const syncToken = process.env.SYNC_TOKEN?.trim();
+        if (syncToken) {
+          const auth = req.headers.authorization ?? "";
+          const provided = auth.startsWith("Bearer ") ? auth.slice(7) : "";
+          if (!provided || !tokenMatches(provided, syncToken)) {
+            return sendJson(res, 401, { error: "Unauthorized" });
+          }
+        }
+        const from = url.searchParams.get("from");
+        if (from) {
+          try {
+            parseIsoDate(from, "from");
+          } catch (err) {
+            return sendJson(res, 400, { error: (err as Error).message });
+          }
+        }
+        const p = syncRunner.run({ fromDate: from ?? undefined });
+        if (!p) return sendJson(res, 409, { error: "Sync already running" });
+        void p
+          .then((r) => events.setSyncState("last_sync_result", JSON.stringify(r)))
+          .catch((err) => console.error("[sync] background failed:", (err as Error).message));
+        return sendJson(res, 202, { started: true });
       }
 
       if (req.method === "GET" && !url.pathname.startsWith("/api/")) {
+        const webRoot = path.resolve(webDist);
         const safe = path.normalize(url.pathname).replace(/^(\.\.[/\\])+/, "");
-        const filePath = path.join(webDist, safe === "/" ? "index.html" : safe);
-        if (!filePath.startsWith(webDist)) return sendJson(res, 403, { error: "Forbidden" });
+        let filePath = path.resolve(webRoot, "." + safe);
+        if (filePath === webRoot) filePath = path.join(webRoot, "index.html");
+        if (!filePath.startsWith(webRoot + path.sep)) return sendJson(res, 403, { error: "Forbidden" });
         if (!fs.existsSync(filePath) || !fs.statSync(filePath).isFile()) {
-          const index = path.join(webDist, "index.html");
+          const index = path.join(webRoot, "index.html");
           if (!fs.existsSync(index)) return sendJson(res, 404, { error: "Not found" });
-          res.writeHead(200, { "Content-Type": MIME[".html"] });
+          res.writeHead(200, {
+            "Content-Type": MIME[".html"],
+            "Cache-Control": "no-cache",
+            "Content-Security-Policy": CSP,
+            ...SEC_HEADERS,
+          });
           fs.createReadStream(index).pipe(res);
           return;
         }
-        res.writeHead(200, { "Content-Type": MIME[path.extname(filePath)] ?? "application/octet-stream" });
+        const ext = path.extname(filePath);
+        const headers: Record<string, string> = {
+          "Content-Type": MIME[ext] ?? "application/octet-stream",
+          "Cache-Control": url.pathname.startsWith("/assets/") ? "public, max-age=31536000, immutable" : "no-cache",
+          ...SEC_HEADERS,
+        };
+        if (ext === ".html") headers["Content-Security-Policy"] = CSP;
+        res.writeHead(200, headers);
         fs.createReadStream(filePath).pipe(res);
         return;
       }
 
       sendJson(res, 404, { error: "Not found" });
     } catch (err) {
-      sendJson(res, 500, { error: (err as Error).message });
+      const e = err as Error & { statusCode?: number };
+      if (e.statusCode) return sendJson(res, e.statusCode, { error: e.message });
+      console.error("[http] error:", err);
+      sendJson(res, 500, { error: "Internal server error" });
     }
   });
 }

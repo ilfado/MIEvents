@@ -3,8 +3,6 @@ import type { SourceResult, EventDraft } from "../../../core/types.js";
 import { inMilanoProvince } from "../../../core/text.js";
 import { getJson } from "./http.js";
 
-const UA = "MIEvents/0.1 (https://github.com/ilfado/MIEvents)";
-
 export function apiKeysFromEnv(env: NodeJS.ProcessEnv): { ticketmaster?: string; eventbriteUser?: string; bandsintown?: string } {
   return {
     ticketmaster: env.TICKETMASTER_API_KEY?.trim() || undefined,
@@ -207,5 +205,3 @@ export function ticketingSources(env: NodeJS.ProcessEnv): EventSource[] {
 
   return sources;
 }
-
-export { UA };

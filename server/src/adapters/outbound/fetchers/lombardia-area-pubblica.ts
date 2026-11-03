@@ -1,20 +1,10 @@
 import { SAGRE_AREA_PUBBLICA_RESOURCE_URL, type SagreAreaPubblicaRow } from "@mievents/shared";
 import type { EventSource } from "../../../application/ports.js";
 import type { SourceResult } from "../../../core/types.js";
-import { inMilanoProvince, parseDateOnly } from "../../../core/text.js";
+import { clean, inMilanoProvince, joinAddress, normalizeDate } from "../../../core/text.js";
 import { getJson } from "./http.js";
 
 const PAGE = 500;
-
-function clean(value: string | null | undefined): string | null {
-  if (!value) return null;
-  const v = value.trim();
-  return v.length > 0 ? v : null;
-}
-
-function normalizeDate(value: string | null | undefined): string | null {
-  return parseDateOnly(clean(value));
-}
 
 function pointOf(row: SagreAreaPubblicaRow): { lat: number; lon: number } | null {
   const loc = row.location;
@@ -63,14 +53,12 @@ function normalizeRow(row: SagreAreaPubblicaRow): SourceResult["events"][number]
   if (clean(row.prov)?.toUpperCase() !== "MI") return null;
   const end = normalizeDate(row.data_fine) ?? start;
   const point = pointOf(row);
-  const address = [
+  const address = joinAddress([
     [clean(row.toponimo), clean(row.indirizzo), clean(row.civico)].filter(Boolean).join(" "),
     clean(row.cap),
     clean(row.comune),
     clean(row.prov),
-  ]
-    .filter(Boolean)
-    .join(", ");
+  ]);
   return {
     sourceId: "lombardia-area-pubblica",
     sourceName: "dati.lombardia.it (area pubblica)",

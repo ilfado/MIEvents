@@ -47,7 +47,7 @@ export function EventMap({
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
-  const markersRef = useRef<maplibregl.Marker[]>([]);
+  const markersRef = useRef<Map<string, { marker: maplibregl.Marker; sig: string }>>(new Map());
   const [ready, setReady] = useState(false);
 
   const geoEvents = useMemo(() => events.filter((e) => e.lat != null && e.lon != null), [events]);
@@ -118,11 +118,23 @@ export function EventMap({
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !ready) return;
-    for (const m of markersRef.current) m.remove();
-    markersRef.current = [];
-    const el = document.createElement("div");
-    void el;
+    for (const [id, entry] of markersRef.current) {
+      if (!geoEvents.some((e) => e.id === id)) {
+        entry.marker.remove();
+        markersRef.current.delete(id);
+      }
+    }
     for (const e of geoEvents) {
+      const sig = `${e.title}|${e.category}|${e.start}|${e.end ?? ""}|${e.venue ?? ""}|${e.city}|${e.saved}`;
+      const existing = markersRef.current.get(e.id);
+      if (existing) {
+        if (existing.sig !== sig) {
+          existing.marker.remove();
+          markersRef.current.delete(e.id);
+        } else {
+          continue;
+        }
+      }
       const markerEl = document.createElement("div");
       markerEl.className = "mi-marker";
       markerEl.style.background = e.saved ? "#111111" : categoryColor(e.category);
@@ -138,9 +150,9 @@ export function EventMap({
         )
         .addTo(map);
       markerEl.addEventListener("click", () => onSelect(e));
-      markersRef.current.push(marker);
+      markersRef.current.set(e.id, { marker, sig });
     }
-  }, [geoEvents, ready, selectedId, onSelect]);
+  }, [geoEvents, ready, onSelect]);
 
   useEffect(() => {
     const map = mapRef.current;

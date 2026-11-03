@@ -42,7 +42,27 @@ export function defaultSources(env: NodeJS.ProcessEnv): EventSource[] {
 }
 
 export function draftId(d: EventDraft): string {
+  if (d._id) return d._id;
   return createHash("sha1").update(`${d.sourceId}|${d.url}|${d.start}`).digest("hex").slice(0, 16);
+}
+
+export interface SyncRunner {
+  run(opts?: SyncOptions): Promise<SyncSummary> | null;
+  isRunning(): boolean;
+}
+
+export function createSyncRunner(deps: SyncDeps): SyncRunner {
+  let current: Promise<SyncSummary> | null = null;
+  return {
+    run(opts) {
+      if (current) return null;
+      current = runSync(deps, opts).finally(() => {
+        current = null;
+      });
+      return current;
+    },
+    isRunning: () => current !== null,
+  };
 }
 
 export async function runSync(deps: SyncDeps, opts: SyncOptions = {}): Promise<SyncSummary> {
@@ -81,6 +101,8 @@ export async function runSync(deps: SyncDeps, opts: SyncOptions = {}): Promise<S
   };
 
   let geocodeBudget = ctx.maxGeocode;
+  const venueCache = new Map<string, { id: string }>();
+  const coordsCache = new Map<string, { lat: number; lon: number } | null>();
 
   if (opts.syncVenues !== false) {
     const vs = await runVenueSync(
@@ -104,54 +126,46 @@ export async function runSync(deps: SyncDeps, opts: SyncOptions = {}): Promise<S
           d.priceMax = p.max;
         }
       }
-      let lat = d.lat;
-      let lon = d.lon;
-      if (lat == null && (d.venue || d.address)) {
-        const pin = pinForVenue(d.venue, d.address);
-        if (pin) {
-          lat = pin.lat;
-          lon = pin.lon;
-        }
-      }
+      const pin = d.venue || d.address ? pinForVenue(d.venue, d.address) : null;
+      let lat = d.lat ?? pin?.lat ?? null;
+      let lon = d.lon ?? pin?.lon ?? null;
       if (d.venue || d.address) {
-        const pin = pinForVenue(d.venue, d.address);
-        if (pin && lat == null) {
-          lat = pin.lat;
-          lon = pin.lon;
-        }
         const venueName = d.venue ?? d.address ?? "";
-        const v = deps.venues.upsertVenue({ name: venueName, address: d.address ?? pin?.address ?? null, city: pin?.city ?? d.city }, fetchedAt);
-        if (pin && !deps.venues.coordsFor(d.venue, d.address)) {
+        let v = venueCache.get(venueName);
+        if (!v) {
+          v = deps.venues.upsertVenue({ name: venueName, address: d.address ?? pin?.address ?? null, city: pin?.city ?? d.city }, fetchedAt);
+          venueCache.set(venueName, v);
+        }
+        const ckey = `${d.venue ?? ""}\u0000${d.address ?? ""}`;
+        let cached = coordsCache.has(ckey) ? coordsCache.get(ckey) ?? null : deps.venues.coordsFor(d.venue, d.address);
+        if (!coordsCache.has(ckey)) coordsCache.set(ckey, cached);
+        if (pin && !cached) {
           deps.venues.setVenueCoords(v.id, pin.lat, pin.lon);
+          cached = { lat: pin.lat, lon: pin.lon };
+          coordsCache.set(ckey, cached);
         }
-        if (lat != null && lon != null) {
-          if (!deps.venues.coordsFor(d.venue, d.address)) {
-            deps.venues.setVenueCoords(v.id, lat, lon);
-          }
-        } else {
-          const cached = deps.venues.coordsFor(d.venue, d.address);
-          if (cached) {
-            lat = cached.lat;
-            lon = cached.lon;
-          } else if (ctx.geocode && geocodeBudget > 0) {
-            geocodeBudget--;
-            const q = [d.address, d.venue, d.city, "MI"].filter(Boolean).join(", ");
-            const point = await deps.geocoder.geocode(q);
-            if (point) {
-              deps.venues.setVenueCoords(v.id, point.lat, point.lon);
-              lat = point.lat;
-              lon = point.lon;
-              geocoded++;
-            }
-            await new Promise((r) => setTimeout(r, ctx.geocodeSleepMs));
-          }
+        if (lat == null && cached) {
+          lat = cached.lat;
+          lon = cached.lon;
         }
-      }
-      if (lat == null && d.venue) {
-        const byName = deps.venues.coordsFor(d.venue, null);
-        if (byName) {
-          lat = byName.lat;
-          lon = byName.lon;
+        if (lat != null && lon != null && !cached) {
+          deps.venues.setVenueCoords(v.id, lat, lon);
+          coordsCache.set(ckey, { lat, lon });
+        }
+        if (lat == null && ctx.geocode && geocodeBudget > 0) {
+          geocodeBudget--;
+          const q = [d.address, d.venue, d.city, "MI"].filter(Boolean).join(", ");
+          const point = await deps.geocoder.geocode(q);
+          if (point) {
+            deps.venues.setVenueCoords(v.id, point.lat, point.lon);
+            coordsCache.set(ckey, point);
+            lat = point.lat;
+            lon = point.lon;
+            geocoded++;
+          } else {
+            coordsCache.set(ckey, null);
+          }
+          await new Promise((r) => setTimeout(r, ctx.geocodeSleepMs));
         }
       }
       const category = categorize(`${d.title} ${d.description ?? ""}`);

@@ -75,16 +75,63 @@ export function inMilanoProvince(lat: number, lon: number): boolean {
   );
 }
 
+const ISO_DATE = /^(\d{4})-(\d{2})-(\d{2})$/;
+
+export function parseIsoDate(value: string, field = "date"): string {
+  const m = ISO_DATE.exec(value);
+  if (!m) throw Object.assign(new Error(`Invalid ${field} date, expected YYYY-MM-DD`), { statusCode: 400 });
+  const y = Number(m[1]);
+  const mo = Number(m[2]);
+  const d = Number(m[3]);
+  const dt = new Date(Date.UTC(y, mo - 1, d));
+  if (dt.getUTCFullYear() !== y || dt.getUTCMonth() !== mo - 1 || dt.getUTCDate() !== d) {
+    throw Object.assign(new Error(`Invalid ${field} date, expected YYYY-MM-DD`), { statusCode: 400 });
+  }
+  return value;
+}
+
+export function safeUrl(u: string | null | undefined): string | null {
+  if (!u) return null;
+  const t = u.trim();
+  return /^https?:\/\//i.test(t) ? t : null;
+}
+
 export function absUrl(baseUrl: string, href: string): string {
-  if (href.startsWith("http")) return href;
-  return new URL(href, baseUrl).toString();
+  try {
+    const u = new URL(href, baseUrl);
+    if (u.protocol !== "http:" && u.protocol !== "https:") return "";
+    return u.toString();
+  } catch {
+    return "";
+  }
+}
+
+export function clean(value: string | null | undefined): string | null {
+  if (!value) return null;
+  const v = value.trim();
+  return v.length > 0 ? v : null;
+}
+
+export function normalizeDate(value: string | null | undefined): string | null {
+  const v = clean(value);
+  if (!v) return null;
+  const iso = v.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (iso) return `${iso[1]}-${iso[2]}-${iso[3]}`;
+  const dmy = v.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})/);
+  if (dmy) return `${dmy[3]}-${dmy[2].padStart(2, "0")}-${dmy[1].padStart(2, "0")}`;
+  return null;
+}
+
+export function joinAddress(segments: Array<string | null | undefined>): string | null {
+  const parts = segments.map((s) => clean(s)).filter((s): s is string => s !== null);
+  return parts.length > 0 ? parts.join(", ") : null;
 }
 
 export function extractLinks(html: string, baseUrl: string, pathRe: RegExp): string[] {
   const urls = new Set<string>();
   for (const m of html.matchAll(/href\s*=\s*(["'])(.*?)\1/g)) {
     const abs = absUrl(baseUrl, m[2]);
-    if (pathRe.test(abs)) urls.add(abs);
+    if (abs && pathRe.test(abs)) urls.add(abs);
   }
   return [...urls];
 }
