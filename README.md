@@ -2,7 +2,7 @@
 
 > **v2.0.0** (PR #41–#51) — refactoring, hardening, mappa e qualità dati:
 - **Sicurezza**: `POST /api/sync` in background con mutex (409 se in corso) e `SYNC_TOKEN` opzionale (Bearer, timing-safe); validazione `from`/`limit`/`offset` (400, niente injection SoQL/SPARQL e niente 500 su NaN); errori HTTP con URL **redacted** (le API key non finiscono in log/risposte); 500 generico, body 413, JSON 400; header `nosniff`/`Referrer-Policy`, **CSP** su HTML, `Cache-Control: immutable` su `/assets/*`; path traversal bloccato (`path.resolve` + prefisso); `_id` connettori anti-collisione; URL eventi sanificati a `http(s)`; Nominatim non cachea più 429/5xx; migrazioni DB via `user_version` + `busy_timeout`.
-- **Performance**: cache in-memory venue/coords durante la sync (niente N+1), marker mappa aggiornati per diff, niente doppio fetch col filtro area, **compressione gzip/br on-the-fly** (vendor-map 1,08 MB raw → ~236 kB br), build target `es2022` (niente warning BigInt di maplibre), dedup codice (statement morto, UA duplicato, helper condivisi).
+- **Performance**: cache in-memory venue/coords durante la sync (niente N+1), niente doppio fetch col filtro area, **compressione gzip/br on-the-fly**, build target `es2022`, dedup codice, **mappa canvas custom `LightMap` al posto di MapLibre** (tagliato ~1,67 MB raw; app totale ~250 kB raw / ~70 kB br).
 - **Mappa**: tile servite dal **proxy proprio** `GET /tiles/{z}/{x}/{y}.png` (upstream Wikimedia → OSM fallback con UA identificativo, validazione magic PNG, cache 2000 tile, `max-age=86400`); worker MapLibre con URL reale (`setWorkerUrl` + `?url`, fix "Worker failed to load"); MIME `.mjs`; CSP `worker-src 'self' blob:`; SW cache `v9` che esclude `/api/` e `/tiles/`; banner errore mappa + sonda tile in console.
 - **Dati**: fix prezzi (niente "gratis" da omaggi; outlier <5€ scartati se max ≥10€); dedup sagre doppia location (`_id` senza indirizzo).
 
@@ -81,7 +81,7 @@ Disabilitare la fase venue con `SYNC_VENUES=0`.
 
 ## Sicurezza (stato attuale)
 
-- **Dipendenze**: `npm audit` 0 vulnerabilità; `maplibre-gl` 6.16.0 (fix GHSA-jrc7-96c5-q579, XSS sanitizer bypass nei popup; popup inoltre escapati a mano); server **zero dipendenze runtime** (`node:http` + `node:sqlite` + `fetch`).
+- **Dipendenze**: `npm audit` 0 vulnerabilità (l'unica lib di mappa, maplibre-gl, è stata rimossa: GHSA-jrc7-96c5-q579 non più rilevante; popup React escapano da soli); server **zero dipendenze runtime** (`node:http` + `node:sqlite` + `fetch`); web: solo React.
 - **Header**: CSP `default-src 'self'` (+ `blob:` solo per il worker), `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer`; API sempre `Cache-Control: no-store`, asset hashati `immutable`.
 - **Endpoint mutanti**: `POST /api/sync` protetto da `SYNC_TOKEN` opzionale (confronto `timingSafeEqual`), mutex anti-sync-concorrenti, input date validato; `POST /api/events/:id` body JSON validato (max 64 kB, 413/400).
 - **Input API**: `q` sanificato per FTS5 (token quotati, max 8, niente injection), `limit`/`offset` interi validati, `from`/`to` date reali (400), `bbox` validato, `category`/`priceBand` allowlist; errori 500 generici (no leak di messaggi interni).
@@ -92,7 +92,7 @@ Disabilitare la fase venue con `SYNC_VENUES=0`.
 ## Stack
 
 - **Server**: Node.js ≥ 22 (zero dipendenze runtime: `node:http` + `node:sqlite` + `fetch`), TypeScript.
-- **Web**: React 19 + Vite, **zero librerie di mappa** (canvas custom pixel con pan/zoom liberi, marker quadrati, clustering, popup — niente lock di Leaflet), mappa in lazy chunk, servita in produzione dallo stesso server con **compressione gzip/br on-the-fly** (vendor-map 1,08 MB raw → ~236 kB br; cache in-memory per encoding). Bundle iniziale ~73 kB gzip. Build target `es2022` (niente più warning BigInt di maplibre).
+- **Web**: React 19 + Vite, **zero librerie di mappa**: `LightMap` canvas 2D custom (pan/zoom/pinch con Pointer Events, overzoom tile, marker quadrati + clustering, popup ancorato, clamp Nord Italia zoom 7–17, toggle strade) — niente MapLibre/worker, CSP tutta `'self'`. Tile raster servite dal proxy `/tiles/` (cache server + browser). Peso totale ~250 kB raw / ~70 kB br, tutto eager (niente chunk lazy). Compressione gzip/br on-the-fly. Build target `es2022`.
 - **Finestra temporale default**: la vista principale mostra solo eventi **da oggi a +15 giorni e con geolocalizzazione**; `?all=1` (o `includePast=1`) mostra tutto lo storico. Le sorgenti sincronizzano solo la finestra 15 giorni. Paginazione `limit`/`offset` con pulsante "carica altri".
 - **Dati**: [dati.lombardia.it](https://www.dati.lombardia.it) (CC0), geocoding Nominatim (ODbL), tile © OpenStreetMap contributors · tile server © Wikimedia Maps (via proxy `/tiles/`).
 

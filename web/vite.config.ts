@@ -12,11 +12,10 @@ export default defineConfig({
   build: {
     outDir: "dist",
     target: "es2022",
-    chunkSizeWarningLimit: 1100,
+    chunkSizeWarningLimit: 900,
     rollupOptions: {
       output: {
         manualChunks(id) {
-          if (id.includes("node_modules/maplibre-gl")) return "vendor-map";
           if (id.includes("node_modules")) return "vendor";
         },
       },
