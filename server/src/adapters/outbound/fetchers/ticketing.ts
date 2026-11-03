@@ -42,9 +42,7 @@ function mapBit(e: BitEvent, from: string): EventDraft | null {
   if (start < from) return null;
   const lat = e.venue?.latitude ? Number(e.venue.latitude) : null;
   const lon = e.venue?.longitude ? Number(e.venue.longitude) : null;
-  if (lat !== null && lon !== null && Number.isFinite(lat) && Number.isFinite(lon)) {
-    if (!inMilanoProvince(lat, lon)) return null;
-  }
+  if (!(lat !== null && lon !== null && Number.isFinite(lat) && Number.isFinite(lon) && inMilanoProvince(lat, lon))) return null;
   const artists = (e.artists ?? []).map((a) => a.name).filter(Boolean) as string[];
   const title = e.title || (artists.length > 0 ? `${artists.join(", ")} in concerto` : null);
   if (!title) return null;
@@ -92,7 +90,8 @@ export function ticketingSources(env: NodeJS.ProcessEnv): EventSource[] {
           const venue = (e._embedded?.venues?.[0] ?? {}) as Record<string, any>;
           const lat = venue.location?.latitude ? Number(venue.location.latitude) : null;
           const lon = venue.location?.longitude ? Number(venue.location.longitude) : null;
-          if (lat !== null && lon !== null && !inMilanoProvince(lat, lon)) continue;
+          const tmOk = lat !== null && lon !== null && Number.isFinite(lat) && Number.isFinite(lon) && inMilanoProvince(lat, lon);
+          if (!tmOk) continue;
           events.push({
             sourceId: "ticketmaster",
             sourceName: "Ticketmaster",
@@ -136,8 +135,8 @@ export function ticketingSources(env: NodeJS.ProcessEnv): EventSource[] {
           const venue = e.venue as Record<string, any> | undefined;
           const lat = venue?.latitude ? Number(venue.latitude) : null;
           const lon = venue?.longitude ? Number(venue.longitude) : null;
-          const hasCoords = lat !== null && lon !== null && Number.isFinite(lat) && Number.isFinite(lon);
-          if (hasCoords && !inMilanoProvince(lat, lon)) continue;
+          const ebOk = lat !== null && lon !== null && Number.isFinite(lat) && Number.isFinite(lon) && inMilanoProvince(lat, lon);
+          if (!ebOk) continue;
           if (start.slice(0, 10) > ctx.toDate) continue;
           events.push({
             sourceId: "eventbrite",

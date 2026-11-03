@@ -257,6 +257,24 @@ test("ticketing sources only with keys; bandsintown artist-based mapping", async
   assert.equal(res.events[0].lat, 45.5086);
 });
 
+test("ticketmaster/eventbrite/bandsintown: drop events without coords inside provincia MI", async () => {
+  const { ticketingSources } = await import("../adapters/outbound/fetchers/ticketing.js");
+  const srcs = ticketingSources({ TICKETMASTER_API_KEY: "K", EVENTBRITE_USER_TOKEN: "T", EVENTBRITE_SEARCH: "1", BANDSINTWN_APP_ID: "A" });
+  const tm = srcs.find((s) => s.id === "ticketmaster")!;
+  const mockFetch = (async () =>
+    new Response(JSON.stringify({
+      _embedded: { events: [
+        { name: "Yung Kai Singapore", dates: { start: { localDate: "2026-11-10" } }, _embedded: { venues: [{ name: "Singapore Expo", location: { latitude: "1.33", longitude: "103.9" } }] } },
+        { name: "Evento senza venue", dates: { start: { localDate: "2026-11-10" } } },
+        { name: "Coez Arcimboldi", dates: { start: { localDate: "2026-11-16" } }, _embedded: { venues: [{ name: "Arcimboldi", city: { name: "Milano" }, location: { latitude: "45.5086", longitude: "9.2166" } }] } },
+      ] },
+    }), { status: 200 })) as typeof fetch;
+  const ctx = { fetchImpl: mockFetch, fromDate: "2026-11-03", toDate: "2026-11-18", geocode: false, geocodeSleepMs: 0, maxGeocode: 0, limits: {}, env: {}, venues: {} as never, geocoder: { async geocode() { return null; } }, now: () => "2026-11-03T00:00:00Z" };
+  const res = await tm.run(ctx as never);
+  assert.equal(res.events.length, 1);
+  assert.equal(res.events[0].title, "Coez Arcimboldi");
+});
+
 test("env helpers", () => {
   const k = apiKeysFromEnv({ TICKETMASTER_API_KEY: " abc ", EVENTBRITE_USER_TOKEN: "" });
   assert.equal(k.ticketmaster, "abc");
