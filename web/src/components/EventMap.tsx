@@ -66,7 +66,7 @@ export function EventMap({
         sources: {
           osm: {
             type: "raster",
-            tiles: ["/tiles/{z}/{x}/{y}{r}.png"],
+            tiles: ["/tiles/{z}/{x}/{y}.png"],
             tileSize: 256,
             attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &middot; tile &copy; <a href="https://maps.wikimedia.org/">Wikimedia Maps</a> (via proxy)',
           },
@@ -93,9 +93,19 @@ export function EventMap({
     });
     mapRef.current = map;
     map.on("error", (e) => {
-      const msg = (e as { error?: { message?: string } }).error?.message ?? "errore caricamento tile/mappa";
+      const err = (e as { error?: { message?: string }; tile?: unknown }).error;
+      const msg = err?.message ?? "errore caricamento tile/mappa";
       console.error("[map] error:", e);
       setMapError(msg);
+      if ((e as { tile?: unknown }).tile) {
+        void fetch("/tiles/10/512/340.png")
+          .then(async (r) => {
+            const b = new Uint8Array(await r.arrayBuffer());
+            const magic = Array.from(b.subarray(0, 8)).map((x) => x.toString(16).padStart(2, "0")).join("");
+            console.error(`[map] tile probe: status=${r.status} ct=${r.headers.get("content-type")} len=${b.length} magic=${magic} enc=${r.headers.get("content-encoding")}`);
+          })
+          .catch((err2) => console.error("[map] tile probe fetch failed:", err2));
+      }
     });
     map.on("load", () => {
       setReady(true);
