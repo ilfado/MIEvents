@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import * as maplibregl from "maplibre-gl";
+import { Map as MaplibreMap, Marker, Popup } from "maplibre-gl";
+import type { LngLatBoundsLike } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import type { MiEvent } from "@mievents/shared";
 import { categoryLabel, formatDateRange } from "../format.js";
 
 const MILAN: [number, number] = [9.19, 45.4642];
-const NORD_ITALIA: maplibregl.LngLatBoundsLike = [
+const NORD_ITALIA: LngLatBoundsLike = [
   [6.6, 43.5],
   [13.7, 47.1],
 ];
@@ -46,15 +47,15 @@ export function EventMap({
   onToggleStreets: () => void;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const mapRef = useRef<maplibregl.Map | null>(null);
-  const markersRef = useRef<Map<string, { marker: maplibregl.Marker; sig: string }>>(new Map());
+  const mapRef = useRef<MaplibreMap | null>(null);
+  const markersRef = useRef<Map<string, { marker: Marker; sig: string }>>(new Map());
   const [ready, setReady] = useState(false);
 
   const geoEvents = useMemo(() => events.filter((e) => e.lat != null && e.lon != null), [events]);
 
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
-    const map = new maplibregl.Map({
+    const map = new MaplibreMap({
       container: containerRef.current,
       style: {
         version: 8,
@@ -139,10 +140,10 @@ export function EventMap({
       markerEl.className = "mi-marker";
       markerEl.style.background = e.saved ? "#111111" : categoryColor(e.category);
       markerEl.title = e.title;
-      const marker = new maplibregl.Marker({ element: markerEl, anchor: "center" })
+      const marker = new Marker({ element: markerEl, anchor: "center" })
         .setLngLat([e.lon as number, e.lat as number])
         .setPopup(
-          new maplibregl.Popup({ offset: 14, className: "mi-popup" }).setHTML(
+          new Popup({ offset: 14, className: "mi-popup" }).setHTML(
             `<strong>${escapeHtml(e.title)}</strong><br/>${categoryLabel(e.category)} · ${formatDateRange(e)}<br/>${escapeHtml(
               (e.venue ? `${e.venue} — ` : "") + e.city,
             )}`,

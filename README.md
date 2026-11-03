@@ -67,7 +67,7 @@ Disabilitare la fase venue con `SYNC_VENUES=0`.
 ## Stack
 
 - **Server**: Node.js ≥ 22 (zero dipendenze runtime: `node:http` + `node:sqlite` + `fetch`), TypeScript.
-- **Web**: React 19 + Vite, **zero librerie di mappa** (canvas custom pixel con pan/zoom liberi, marker quadrati, clustering, popup — niente lock di Leaflet), mappa in lazy chunk (~2.6 kB gzip), servita in produzione dallo stesso server. Bundle iniziale ~73 kB gzip.
+- **Web**: React 19 + Vite, **zero librerie di mappa** (canvas custom pixel con pan/zoom liberi, marker quadrati, clustering, popup — niente lock di Leaflet), mappa in lazy chunk, servita in produzione dallo stesso server con **compressione gzip/br on-the-fly** (vendor-map 1,08 MB raw → ~236 kB br; cache in-memory per encoding). Bundle iniziale ~73 kB gzip. Build target `es2022` (niente più warning BigInt di maplibre).
 - **Finestra temporale default**: la vista principale mostra solo eventi **da oggi a +15 giorni e con geolocalizzazione**; `?all=1` (o `includePast=1`) mostra tutto lo storico. Le sorgenti sincronizzano solo la finestra 15 giorni. Paginazione `limit`/`offset` con pulsante "carica altri".
 - **Dati**: [dati.lombardia.it](https://www.dati.lombardia.it) (CC0), geocoding Nominatim (ODbL), tiles © OpenStreetMap.
 

@@ -1,6 +1,8 @@
 import http from "node:http";
 import fs from "node:fs";
 import path from "node:path";
+import zlib from "node:zlib";
+import { promisify } from "node:util";
 import { timingSafeEqual } from "node:crypto";
 import type { DatabaseSync } from "node:sqlite";
 import { EVENT_CATEGORIES, type EventCategory, type EventFilters, type PriceBand } from "@mievents/shared";
@@ -10,20 +12,84 @@ import { createSyncRunner, type SyncRunner } from "../../../application/services
 import { createNominatimGeocoder } from "../../outbound/geo/nominatim.js";
 import { parseIsoDate } from "../../../core/text.js";
 
-const CSP = "default-src 'self'; script-src 'self' blob:; worker-src blob:; child-src blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://tile.openstreetmap.org; connect-src 'self'";
+const gzipAsync = promisify(zlib.gzip);
+const brotliAsync = promisify(zlib.brotliCompress);
+
+const CSP = "default-src 'self'; script-src 'self' blob:; worker-src blob:; child-src blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://tile.openstreetmap.org; connect-src 'self' https://tile.openstreetmap.org";
 
 const SEC_HEADERS: Record<string, string> = {
   "X-Content-Type-Options": "nosniff",
   "Referrer-Policy": "no-referrer",
 };
 
-function sendJson(res: http.ServerResponse, status: number, body: unknown): void {
-  res.writeHead(status, {
+const COMPRESSIBLE_EXT = new Set([".html", ".js", ".css", ".json", ".svg", ".webmanifest", ".map"]);
+const compressedCache = new Map<string, { mtimeMs: number; enc: string; buf: Buffer }>();
+
+function pickEncoding(req: http.IncomingMessage): "br" | "gzip" | null {
+  const ae = String(req.headers["accept-encoding"] ?? "");
+  if (/\bbr\b/.test(ae)) return "br";
+  if (/\bgzip\b/.test(ae)) return "gzip";
+  return null;
+}
+
+async function compress(buf: Buffer, enc: "br" | "gzip"): Promise<Buffer> {
+  if (enc === "br") {
+    return brotliAsync(buf, { params: { [zlib.constants.BROTLI_PARAM_QUALITY]: 11 } });
+  }
+  return gzipAsync(buf, { level: 9 });
+}
+
+async function sendJson(req: http.IncomingMessage, res: http.ServerResponse, status: number, body: unknown): Promise<void> {
+  const raw = Buffer.from(JSON.stringify(body), "utf8");
+  const headers: Record<string, string> = {
     "Content-Type": "application/json; charset=utf-8",
     "Cache-Control": "no-store",
+    Vary: "Accept-Encoding",
     ...SEC_HEADERS,
-  });
-  res.end(JSON.stringify(body));
+  };
+  const enc = pickEncoding(req);
+  if (enc && raw.length >= 1024) {
+    const z = await compress(raw, enc);
+    if (z.length < raw.length) {
+      headers["Content-Encoding"] = enc;
+      headers["Content-Length"] = String(z.length);
+      res.writeHead(status, headers);
+      res.end(z);
+      return;
+    }
+  }
+  headers["Content-Length"] = String(raw.length);
+  res.writeHead(status, headers);
+  res.end(raw);
+}
+
+async function sendFile(req: http.IncomingMessage, res: http.ServerResponse, filePath: string, baseHeaders: Record<string, string>): Promise<void> {
+  const headers: Record<string, string> = { Vary: "Accept-Encoding", ...baseHeaders };
+  const ext = path.extname(filePath);
+  const enc = COMPRESSIBLE_EXT.has(ext) ? pickEncoding(req) : null;
+  const st = fs.statSync(filePath);
+  if (!enc || st.size < 1024) {
+    res.writeHead(200, headers);
+    fs.createReadStream(filePath).pipe(res);
+    return;
+  }
+  const cacheKey = `${filePath}|${enc}`;
+  const cached = compressedCache.get(cacheKey);
+  if (cached && cached.mtimeMs === st.mtimeMs) {
+    res.writeHead(200, { ...headers, "Content-Encoding": cached.enc, "Content-Length": String(cached.buf.length) });
+    res.end(cached.buf);
+    return;
+  }
+  const raw = await fs.promises.readFile(filePath);
+  const z = await compress(raw, enc);
+  if (z.length < raw.length) {
+    compressedCache.set(cacheKey, { mtimeMs: st.mtimeMs, enc, buf: z });
+    res.writeHead(200, { ...headers, "Content-Encoding": enc, "Content-Length": String(z.length) });
+    res.end(z);
+  } else {
+    res.writeHead(200, { ...headers, "Content-Length": String(raw.length) });
+    res.end(raw);
+  }
 }
 
 function readBody(req: http.IncomingMessage, limit = 64 * 1024): Promise<string> {
@@ -110,27 +176,27 @@ export function createServer(deps: { db: DatabaseSync; webDist: string; events?:
       const url = new URL(req.url ?? "/", `http://${req.headers.host ?? "localhost"}`);
       const route = `${req.method} ${url.pathname}`;
 
-      if (route === "GET /api/health") return sendJson(res, 200, { ok: true });
+      if (route === "GET /api/health") return await sendJson(req, res, 200, { ok: true });
 
       if (route === "GET /api/events") {
         try {
-          return sendJson(res, 200, events.listEvents(parseFilters(url)));
+          return await sendJson(req, res, 200, events.listEvents(parseFilters(url)));
         } catch (err) {
           const e = err as Error & { statusCode?: number };
-          return sendJson(res, e.statusCode ?? 400, { error: e.message });
+          return await sendJson(req, res, e.statusCode ?? 400, { error: e.message });
         }
       }
 
-      if (route === "GET /api/events/cities") return sendJson(res, 200, { cities: events.listCities() });
-      if (route === "GET /api/events/categories") return sendJson(res, 200, { categories: EVENT_CATEGORIES });
-      if (route === "GET /api/venues") return sendJson(res, 200, { venues: venues.listVenues() });
-      if (route === "GET /api/sync/state") return sendJson(res, 200, events.getSyncState());
+      if (route === "GET /api/events/cities") return await sendJson(req, res, 200, { cities: events.listCities() });
+      if (route === "GET /api/events/categories") return await sendJson(req, res, 200, { categories: EVENT_CATEGORIES });
+      if (route === "GET /api/venues") return await sendJson(req, res, 200, { venues: venues.listVenues() });
+      if (route === "GET /api/sync/state") return await sendJson(req, res, 200, events.getSyncState());
 
       if (url.pathname.startsWith("/api/events/") && req.method === "GET") {
         const id = decodeURIComponent(url.pathname.slice("/api/events/".length));
         const event = events.getEvent(id);
-        if (!event) return sendJson(res, 404, { error: "Event not found" });
-        return sendJson(res, 200, event);
+        if (!event) return await sendJson(req, res, 404, { error: "Event not found" });
+        return await sendJson(req, res, 200, event);
       }
 
       if (url.pathname.startsWith("/api/events/") && req.method === "POST") {
@@ -139,11 +205,11 @@ export function createServer(deps: { db: DatabaseSync; webDist: string; events?:
         try {
           body = JSON.parse((await readBody(req)) || "{}") as { saved?: boolean };
         } catch {
-          return sendJson(res, 400, { error: "Invalid JSON body" });
+          return await sendJson(req, res, 400, { error: "Invalid JSON body" });
         }
-        if (typeof body.saved !== "boolean") return sendJson(res, 400, { error: "Body must be { saved: boolean }" });
-        if (!events.setSaved(id, body.saved)) return sendJson(res, 404, { error: "Event not found" });
-        return sendJson(res, 200, events.getEvent(id));
+        if (typeof body.saved !== "boolean") return await sendJson(req, res, 400, { error: "Body must be { saved: boolean }" });
+        if (!events.setSaved(id, body.saved)) return await sendJson(req, res, 404, { error: "Event not found" });
+        return await sendJson(req, res, 200, events.getEvent(id));
       }
 
       if (route === "GET /api/debug/source" && process.env.DEBUG_SOURCES === "1") {
@@ -151,7 +217,7 @@ export function createServer(deps: { db: DatabaseSync; webDist: string; events?:
         const { defaultSources } = await import("../../../application/services/sync.js");
         const sources = defaultSources(process.env);
         const src = sources.find((s) => s.id === name);
-        if (!src) return sendJson(res, 404, { error: "unknown source", available: sources.map((s) => s.id) });
+        if (!src) return await sendJson(req, res, 404, { error: "unknown source", available: sources.map((s) => s.id) });
         const ctx = {
           fetchImpl: fetch,
           fromDate: new Date().toISOString().slice(0, 10),
@@ -168,9 +234,9 @@ export function createServer(deps: { db: DatabaseSync; webDist: string; events?:
         const t0 = Date.now();
         try {
           const result = await src.run(ctx as never);
-          return sendJson(res, 200, { source: name, ok: true, events: result.events.length, ms: Date.now() - t0, sample: result.events.slice(0, 3) });
+          return await sendJson(req, res, 200, { source: name, ok: true, events: result.events.length, ms: Date.now() - t0, sample: result.events.slice(0, 3) });
         } catch (err) {
-          return sendJson(res, 200, { source: name, ok: false, error: (err as Error).message, ms: Date.now() - t0 });
+          return await sendJson(req, res, 200, { source: name, ok: false, error: (err as Error).message, ms: Date.now() - t0 });
         }
       }
 
@@ -180,7 +246,7 @@ export function createServer(deps: { db: DatabaseSync; webDist: string; events?:
           const auth = req.headers.authorization ?? "";
           const provided = auth.startsWith("Bearer ") ? auth.slice(7) : "";
           if (!provided || !tokenMatches(provided, syncToken)) {
-            return sendJson(res, 401, { error: "Unauthorized" });
+            return await sendJson(req, res, 401, { error: "Unauthorized" });
           }
         }
         const from = url.searchParams.get("from");
@@ -188,15 +254,15 @@ export function createServer(deps: { db: DatabaseSync; webDist: string; events?:
           try {
             parseIsoDate(from, "from");
           } catch (err) {
-            return sendJson(res, 400, { error: (err as Error).message });
+            return await sendJson(req, res, 400, { error: (err as Error).message });
           }
         }
         const p = syncRunner.run({ fromDate: from ?? undefined });
-        if (!p) return sendJson(res, 409, { error: "Sync already running" });
+        if (!p) return await sendJson(req, res, 409, { error: "Sync already running" });
         void p
           .then((r) => events.setSyncState("last_sync_result", JSON.stringify(r)))
           .catch((err) => console.error("[sync] background failed:", (err as Error).message));
-        return sendJson(res, 202, { started: true });
+        return await sendJson(req, res, 202, { started: true });
       }
 
       if (req.method === "GET" && !url.pathname.startsWith("/api/")) {
@@ -204,18 +270,16 @@ export function createServer(deps: { db: DatabaseSync; webDist: string; events?:
         const safe = path.normalize(url.pathname).replace(/^(\.\.[/\\])+/, "");
         let filePath = path.resolve(webRoot, "." + safe);
         if (filePath === webRoot) filePath = path.join(webRoot, "index.html");
-        if (!filePath.startsWith(webRoot + path.sep)) return sendJson(res, 403, { error: "Forbidden" });
+        if (!filePath.startsWith(webRoot + path.sep)) return await sendJson(req, res, 403, { error: "Forbidden" });
         if (!fs.existsSync(filePath) || !fs.statSync(filePath).isFile()) {
           const index = path.join(webRoot, "index.html");
-          if (!fs.existsSync(index)) return sendJson(res, 404, { error: "Not found" });
-          res.writeHead(200, {
+          if (!fs.existsSync(index)) return await sendJson(req, res, 404, { error: "Not found" });
+          return await sendFile(req, res, index, {
             "Content-Type": MIME[".html"],
             "Cache-Control": "no-cache",
             "Content-Security-Policy": CSP,
             ...SEC_HEADERS,
           });
-          fs.createReadStream(index).pipe(res);
-          return;
         }
         const ext = path.extname(filePath);
         const headers: Record<string, string> = {
@@ -224,17 +288,15 @@ export function createServer(deps: { db: DatabaseSync; webDist: string; events?:
           ...SEC_HEADERS,
         };
         if (ext === ".html") headers["Content-Security-Policy"] = CSP;
-        res.writeHead(200, headers);
-        fs.createReadStream(filePath).pipe(res);
-        return;
+        return await sendFile(req, res, filePath, headers);
       }
 
-      sendJson(res, 404, { error: "Not found" });
+      return await sendJson(req, res, 404, { error: "Not found" });
     } catch (err) {
       const e = err as Error & { statusCode?: number };
-      if (e.statusCode) return sendJson(res, e.statusCode, { error: e.message });
+      if (e.statusCode) return await sendJson(req, res, e.statusCode, { error: e.message });
       console.error("[http] error:", err);
-      sendJson(res, 500, { error: "Internal server error" });
+      return await sendJson(req, res, 500, { error: "Internal server error" });
     }
   });
 }
