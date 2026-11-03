@@ -6,6 +6,7 @@ import { EVENT_CATEGORIES, PRICE_BANDS, type EventCategory, type EventFilters, t
 import type { EventRepository, VenueRepository } from "../../../application/ports.js";
 import { isBigEvent } from "../../../core/big-events.js";
 import { priceBandOf } from "../../../core/price.js";
+import { parseIsoDate } from "../../../core/text.js";
 
 export interface EventRow {
   id: string;
@@ -44,6 +45,8 @@ export function openDb(dbPath: string): DatabaseSync {
   const db = new DatabaseSync(dbPath);
   db.exec(`
     PRAGMA journal_mode = WAL;
+    PRAGMA synchronous = NORMAL;
+    PRAGMA busy_timeout = 5000;
     CREATE TABLE IF NOT EXISTS events (
       id TEXT PRIMARY KEY,
       title TEXT NOT NULL,
@@ -112,33 +115,43 @@ export function openDb(dbPath: string): DatabaseSync {
       value TEXT NOT NULL
     );
   `);
-  try {
-    db.exec("ALTER TABLE venues ADD COLUMN source TEXT");
-  } catch {
-    // colonna gi\u00e0 presente
-  }
-  for (const col of [
-    "ALTER TABLE events ADD COLUMN price_min REAL",
-    "ALTER TABLE events ADD COLUMN price_max REAL",
-    "ALTER TABLE events ADD COLUMN price_band TEXT",
-    "ALTER TABLE events ADD COLUMN big INTEGER NOT NULL DEFAULT 0",
-  ]) {
+  const version = (db.prepare("PRAGMA user_version").get() as { user_version: number }).user_version;
+  if (version < 1) {
     try {
-      db.exec(col);
+      db.exec("ALTER TABLE venues ADD COLUMN source TEXT");
     } catch {
-      // colonna già presente
+      // colonna gia' presente
     }
+    db.exec("PRAGMA user_version = 1");
   }
-  const staleBig = db.prepare("SELECT id, venue, address, title FROM events WHERE big = 0").all() as {
-    id: string;
-    venue: string | null;
-    address: string | null;
-    title: string;
-  }[];
-  for (const r of staleBig) {
-    if (isBigEvent(r.venue, r.address, r.title)) {
-      db.prepare("UPDATE events SET big = 1 WHERE id = ?").run(r.id);
+  if (version < 2) {
+    for (const col of [
+      "ALTER TABLE events ADD COLUMN price_min REAL",
+      "ALTER TABLE events ADD COLUMN price_max REAL",
+      "ALTER TABLE events ADD COLUMN price_band TEXT",
+      "ALTER TABLE events ADD COLUMN big INTEGER NOT NULL DEFAULT 0",
+    ]) {
+      try {
+        db.exec(col);
+      } catch {
+        // colonna gia' presente
+      }
     }
+    db.exec("PRAGMA user_version = 2");
+  }
+  if (version < 3) {
+    const staleBig = db.prepare("SELECT id, venue, address, title FROM events WHERE big = 0").all() as {
+      id: string;
+      venue: string | null;
+      address: string | null;
+      title: string;
+    }[];
+    for (const r of staleBig) {
+      if (isBigEvent(r.venue, r.address, r.title)) {
+        db.prepare("UPDATE events SET big = 1 WHERE id = ?").run(r.id);
+      }
+    }
+    db.exec("PRAGMA user_version = 3");
   }
   return db;
 }
@@ -175,21 +188,6 @@ export function rowToEvent(r: EventRow): MiEvent {
   };
 }
 
-const ISO_DATE = /^(\d{4})-(\d{2})-(\d{2})$/;
-
-function parseIsoDate(value: string, field: string): string {
-  const m = ISO_DATE.exec(value);
-  if (!m) throw Object.assign(new Error(`Invalid ${field} date, expected YYYY-MM-DD`), { statusCode: 400 });
-  const y = Number(m[1]);
-  const mo = Number(m[2]);
-  const d = Number(m[3]);
-  const dt = new Date(Date.UTC(y, mo - 1, d));
-  if (dt.getUTCFullYear() !== y || dt.getUTCMonth() !== mo - 1 || dt.getUTCDate() !== d) {
-    throw Object.assign(new Error(`Invalid ${field} date, expected YYYY-MM-DD`), { statusCode: 400 });
-  }
-  return value;
-}
-
 export function ftsQuery(q: string): string {
   const tokens = q
     .split(/\s+/)
@@ -209,24 +207,6 @@ function parseBbox(bbox: string): [number, number, number, number] | null {
 }
 
 export function createEventRepository(db: DatabaseSync): EventRepository {
-  const upsert = db.prepare(`
-    INSERT INTO events (
-      id, title, description, category, type, start, end, time_start, time_end,
-      venue, address, city, province, cap, organizer, website, program_url,
-      source, source_url, lat, lon, fetched_at, saved,
-      price_min, price_max, price_band, big
-    ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
-    ON CONFLICT(id) DO UPDATE SET
-      title=excluded.title, description=excluded.description, category=excluded.category,
-      type=excluded.type, start=excluded.start, end=excluded.end,
-      time_start=excluded.time_start, time_end=excluded.time_end, venue=excluded.venue,
-      address=excluded.address, city=excluded.city, province=excluded.province,
-      cap=excluded.cap, organizer=excluded.organizer, website=excluded.website,
-      program_url=excluded.program_url, lat=COALESCE(events.lat, excluded.lat),
-      lon=COALESCE(events.lon, excluded.lon), fetched_at=excluded.fetched_at,
-      price_min=excluded.price_min, price_max=excluded.price_max,
-      price_band=excluded.price_band, big=excluded.big
-  `);
   const upsertDraft = db.prepare(`
     INSERT INTO events (
       id, title, description, category, type, start, end, time_start, time_end,

@@ -1,5 +1,8 @@
 # MIEvents v1.3
 
+> Hardening & performance: `POST /api/sync` ora gira in background con mutex (niente sync sovrapposti) e token opzionale `SYNC_TOKEN`; `from` validato (niente injection SoQL/SPARQL); errori HTTP degli adapter con URL redacted (le API key non finiscono più in log/risposte); `_id` dei connettori usato come id evento (niente più collisioni fra sagre stessa giornata); cache venue/coords in-memory durante la sync (niente N+1); Nominatim non cachea più i 429/5xx; migrazioni DB via `PRAGMA user_version`; header di sicurezza + CSP + cache long su `/assets/*`; marker mappa aggiornati per diff; `limit`/`offset` validati; URL eventi sanificati a `http(s)`.
+
+
 > v1.3.0 — focus **eventi medio-piccoli a basso costo**: fasce di prezzo (Gratis / fino a 10€ / fino a 20€ / Cari) con filtro API, chip e badge; esclusione di stadi/palazzetti/arene grandi; sorgenti ticketing (Ticketmaster/Eventbrite/Bandsintown) **off di default** (`TICKETING_SOURCES=1` per riattivarle); eventiatmilano con lookback 180gg (recupera anche mostre lunghe già in corso) e paginazione tollerante ai 404; MilanoToday con estrazione link più robusta e prezzo dal testo della pagina evento. Sicurezza: **maplibre-gl 4.7.1 → 6.16.0** (GHSA-jrc7-96c5-q579, XSS sanitizer bypass nei popup: il bump era documentato ma non era mai atterrato in `web/package.json`), `npm audit` 0 vulnerabilità.
 
 ---
@@ -98,7 +101,7 @@ sincronizzazione manuale: `POST /api/sync?from=YYYY-MM-DD`.
 | POST | `/api/events/:id` body `{"saved": bool}` | Salva / desalva |
 | GET | `/api/events/cities` | Elenco comuni presenti |
 | GET | `/api/events/categories` | Categorie disponibili |
-| POST | `/api/sync?from=YYYY-MM-DD` | Sincronizza dalla fonte pubblica |
+| POST | `/api/sync?from=YYYY-MM-DD` | Avvia la sync in background: `202 {started:true}` (risultato in `GET /api/sync/state` come `last_sync_result`), `409` se una sync è già in corso, `400` se `from` non è una data valida, `401` se `SYNC_TOKEN` è impostato e il token manca/errato |
 | GET | `/api/sync/state` | Ultima sincronizzazione |
 | GET | `/api/health` | Health check |
 
@@ -127,6 +130,7 @@ npm test               # test unitari e API (node:test, DB in-memory, fetch mock
 | `EVENTBRITE_SEARCH` | `0` | `1` solo se hai user token valido: abilita il connettore search (di default spento) |
 | `BANDSINTWN_APP_ID` | — | API key Bandsintown (da artist.bandsintown.com → Settings → Get API Key). L'API è **artist-only**: il connettore interroga `/artists/{nome}/events` |
 | `BANDSINTWN_ARTISTS` | lista default di ~50 artisti italiani | Elenco artisti separati da virgola per Bandsintown (max 25/sync); gli eventi vengono filtrati per provincia di Milano via coordinate |
+| `SYNC_TOKEN` | — | Se impostato, `POST /api/sync` richiede header `Authorization: Bearer <token>` (confronto timing-safe) |
 | `TICKETING_SOURCES` | `0` | `1` riattiva le sorgenti ticketing (Ticketmaster/Eventbrite/Bandsintown, servono anche le rispettive chiavi): di default **off** perché producono quasi solo grandi concerti in stadi/palazzetti |
 
 Le API key si impostano **solo come variabili d'ambiente nel deploy** (mai in chat o nel codice): su Render → Settings → Environment → Add Environment Variable. Senza chiavi i connettori restano spenti e gli altri continuano a funzionare.

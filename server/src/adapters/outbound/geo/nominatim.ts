@@ -17,17 +17,18 @@ export function createNominatimGeocoder(): Geocoder & { cacheSize(): number } {
             signal: AbortSignal.timeout(8000),
           },
         );
-        if (!res.ok) {
-          cache.set(key, null);
-          return null;
-        }
+        if (!res.ok) return null;
         const arr = (await res.json()) as Array<{ lat: string; lon: string }>;
-        const first = arr[0];
+        const first = Array.isArray(arr) ? arr[0] : undefined;
         if (!first) {
           cache.set(key, null);
           return null;
         }
         const point = { lat: Number(first.lat), lon: Number(first.lon) };
+        if (cache.size >= 5000) {
+          const oldest = cache.keys().next().value;
+          if (oldest !== undefined) cache.delete(oldest);
+        }
         cache.set(key, point);
         return point;
       } catch {

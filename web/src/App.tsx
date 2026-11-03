@@ -85,10 +85,6 @@ export default function App() {
     setFilterByArea((v) => !v);
   }, []);
 
-  useEffect(() => {
-    if (filterByArea) void load(filters);
-  }, [filterByArea, load, filters]);
-
   const selected = useMemo(() => events.find((e) => e.id === selectedId) ?? null, [events, selectedId]);
   const hasFilters = Boolean(filters.q.trim() || filters.city || filters.category || filters.priceBand || filters.from || filters.to || quickDate);
 

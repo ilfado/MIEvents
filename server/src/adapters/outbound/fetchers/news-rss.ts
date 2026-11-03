@@ -7,7 +7,7 @@ import { getText } from "./http.js";
 const EVENT_RE =
   /\b(concerto|concerti|live|dj set|djset|festival|show|mostra|esposizione|spettacolo|teatro|musical|sagra|fiera|mercato|rassegna|inaugurazione|proiezione|lezione|incontro|workshop|laboratorio|evento|appuntamento|manifestazione|visita guidata|stand-up|comedy|dj)\b/i;
 const VENUE_HINT_RE =
-  /\b(alcatraz|fabrique|santeria|magnolia|carroponte|legend|blue note|base milano|magazzini generali|elfo|arcimboldi|carcano|franco parenti|menotti|out off|zona k|fabbrica del vapore|hangarbicocca|hangarbicocca|triennale|castello sforzesco|sforzesco|unipol|forum|dome|san siro|idroscalo|leoncavallo|biko|slaughter)\b/i;
+  /\b(alcatraz|fabrique|santeria|magnolia|carroponte|legend|blue note|base milano|magazzini generali|elfo|arcimboldi|carcano|franco parenti|menotti|out off|zona k|fabbrica del vapore|hangarbicocca|triennale|castello sforzesco|sforzesco|unipol|forum|dome|san siro|idroscalo|leoncavallo|biko|slaughter)\b/i;
 const MI_AREA_RE =
   /\b(milano|monza|brianza|sesto|segrate|cinisello|rho|pero|assago|rozzano|san donato|melegnano|abbiategrasso|cernusco|gorgonzola|pioltello|cesano|corsico|binasco|cusago|paderno|senago|legnano|busto|castellanza|parabiago|novate|garbagnate|laina|limbiate|arese|baranzate|bollate|cesate|inzago|trezzano|magenta|corbetta|sedriano|vittuone|lombardia|MI)\b/i;
 

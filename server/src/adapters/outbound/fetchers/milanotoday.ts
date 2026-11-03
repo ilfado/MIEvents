@@ -20,7 +20,7 @@ export const milanotodaySource: EventSource = {
     const delay = 700;
     const from = ctx.fromDate;
     const to = ctx.toDate;
-    const detailUrls: string[] = [];
+    const detailSet = new Set<string>();
     for (let page = 1; page <= maxPages; page++) {
       const url = page === 1 ? milanotodayRangeUrl(from, to) : `${milanotodayRangeUrl(from, to)}?page=${page}`;
       let html: string;
@@ -30,14 +30,14 @@ export const milanotodaySource: EventSource = {
         break;
       }
       const found = extractLinks(html, url, EVENT_PATH);
-      for (const u of found) if (!detailUrls.includes(u)) detailUrls.push(u);
+      for (const u of found) detailSet.add(u);
       if (found.length === 0) break;
     }
     try {
       const rss = await getText(ctx.fetchImpl, RSS_CHANNEL, "application/rss+xml, application/xml, text/xml, */*");
       for (const m of rss.matchAll(/<link>\s*([^<]+?)\s*<\/link>/g)) {
         const abs = m[1].startsWith("http") ? m[1] : new URL(m[1], RSS_CHANNEL).toString();
-        if (EVENT_PATH.test(abs) && !detailUrls.includes(abs)) detailUrls.push(abs);
+        if (EVENT_PATH.test(abs)) detailSet.add(abs);
       }
     } catch {
       // canale RSS non raggiungibile: si prosegue con i link del listing
@@ -45,6 +45,7 @@ export const milanotodaySource: EventSource = {
     const events: SourceResult["events"] = [];
     const seen = new Set<string>();
     let count = 0;
+    const detailUrls = [...detailSet];
     for (const url of detailUrls) {
       if (count >= maxDetails) break;
       try {

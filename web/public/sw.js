@@ -20,10 +20,7 @@ self.addEventListener("fetch", (event) => {
   const url = new URL(event.request.url);
   if (event.request.method !== "GET") return;
 
-  if (url.pathname.startsWith("/api/")) {
-    event.respondWith(fetch(event.request).catch(() => caches.match(event.request)));
-    return;
-  }
+  if (url.pathname.startsWith("/api/")) return;
 
   if (url.pathname === "/" || url.pathname === "/index.html" || url.pathname.startsWith("/assets/")) {
     event.respondWith(

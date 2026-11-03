@@ -1,4 +1,4 @@
-import { stripHtml, parseDateTime } from "./text.js";
+import { stripHtml, parseDateTime, safeUrl } from "./text.js";
 import type { EventDraft } from "./types.js";
 import type { ParsedPrice } from "./price.js";
 
@@ -128,7 +128,7 @@ export function ldToDraft(ev: LdEvent, sourceId: string, sourceName: string): Ev
     end: end?.date ?? null,
     timeStart: start.time,
     timeEnd: end?.time ?? null,
-    url: ev.url ?? "",
+    url: safeUrl(ev.url) ?? "",
     venue: loc?.name && loc.name !== "-" ? loc.name : null,
     address,
     city,

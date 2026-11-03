@@ -200,6 +200,20 @@ test("grandi eventi saltati in sync; prezzo dal testo persistito; filtro priceBa
   assert.equal(withBig.events.find((e) => e.id === "big1")!.big, true);
 });
 
+test("draftId: _id esplicito evita collisioni stesso url/data (sagre stessa giornata)", async () => {
+  const db = openDb(":memory:");
+  const events = createEventRepository(db);
+  const venues = createVenueRepository(db);
+  const a = { ...DRAFT, _id: "aaaaaaaabbbbbbbb" };
+  const b = { ...DRAFT, _id: "ccccccccdddddddd", title: "ALTRA SAGRA STESSA DATA" };
+  const res = await runSync(
+    { events, venues, geocoder: mockGeocoder(), extraSources: [testSource([a, b])] },
+    { env: {}, syncVenues: false, geocode: false },
+  );
+  assert.equal(res.inserted, 2);
+  assert.equal(events.listEvents({ all: true }).total, 2);
+});
+
 test("HTTP API end-to-end", async () => {
   const db = openDb(":memory:");
   const events = createEventRepository(db);
@@ -248,6 +262,13 @@ test("HTTP API end-to-end", async () => {
     assert.deepEqual(cities.body.cities, ["SENAGO"]);
     const badBand = await get("/api/events?priceBand=zzz&all=1");
     assert.equal(badBand.status, 400);
+    assert.equal((await get("/api/events?limit=abc")).status, 400);
+    assert.equal((await get("/api/events?offset=-1")).status, 400);
+    assert.equal((await get("/api/events?limit=50")).status, 200);
+    const badSync = await fetch(`http://127.0.0.1:${port}/api/sync?from=2026-13-99`, { method: "POST" });
+    assert.equal(badSync.status, 400);
+    const badSync2 = await fetch(`http://127.0.0.1:${port}/api/sync?from=' OR '1'='1`, { method: "POST" });
+    assert.equal(badSync2.status, 400);
   } finally {
     server.close();
   }

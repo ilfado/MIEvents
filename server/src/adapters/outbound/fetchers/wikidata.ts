@@ -1,7 +1,7 @@
 import type { EventSource } from "../../../application/ports.js";
 import type { SourceResult } from "../../../core/types.js";
 import { inMilanoProvince } from "../../../core/text.js";
-import { getJsonRetryable as getJson } from "./http.js";
+import { getJson } from "./http.js";
 
 const ENDPOINT = "https://qlever.dev/api/wikidata";
 
