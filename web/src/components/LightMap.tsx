@@ -182,8 +182,8 @@ export function LightMap({
       const h = wrap?.clientHeight ?? 0;
       const center = project(v.lat, v.lon, v.zoom);
       const scale = 2 ** (zoom - v.zoom);
-      const nx = center.x + (px - w / 2) * (1 - 1 / scale);
-      const ny = center.y + (py - h / 2) * (1 - 1 / scale);
+      const nx = center.x * scale + (px - w / 2) * (scale - 1);
+      const ny = center.y * scale + (py - h / 2) * (scale - 1);
       const geo = unproject(nx, ny, zoom);
       return { lat: geo.lat, lon: geo.lon, zoom };
     });
@@ -367,8 +367,8 @@ export function LightMap({
       const h = wrap?.clientHeight ?? 0;
       const center = project(v.lat, v.lon, v.zoom);
       const scale = 2 ** (zoom - v.zoom);
-      const nx = center.x + (px - w / 2) * (1 - 1 / scale);
-      const ny = center.y + (py - h / 2) * (1 - 1 / scale);
+      const nx = center.x * scale + (px - w / 2) * (scale - 1);
+      const ny = center.y * scale + (py - h / 2) * (scale - 1);
       const geo = unproject(nx, ny, zoom);
       return { lat: geo.lat, lon: geo.lon, zoom };
     });
