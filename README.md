@@ -1,6 +1,10 @@
 # MIEvents v2.0
 
-> **v2.0.0** — refactoring + hardening + fix (Vedi PR #41-#51): sync con mutex/token, validazione input, key redaction, dedup, compressione gzip/br, tile via proxy `/tiles/` (Wikimedia/OSM fallback, validazione PNG), worker MapLibre con URL reale, CSP restrittiva; fix prezzi (niente 'gratis' da omaggi, outlier 1€ scartati) e dedup sagre doppia location.
+> **v2.0.0** (PR #41–#51) — refactoring, hardening, mappa e qualità dati:
+- **Sicurezza**: `POST /api/sync` in background con mutex (409 se in corso) e `SYNC_TOKEN` opzionale (Bearer, timing-safe); validazione `from`/`limit`/`offset` (400, niente injection SoQL/SPARQL e niente 500 su NaN); errori HTTP con URL **redacted** (le API key non finiscono in log/risposte); 500 generico, body 413, JSON 400; header `nosniff`/`Referrer-Policy`, **CSP** su HTML, `Cache-Control: immutable` su `/assets/*`; path traversal bloccato (`path.resolve` + prefisso); `_id` connettori anti-collisione; URL eventi sanificati a `http(s)`; Nominatim non cachea più 429/5xx; migrazioni DB via `user_version` + `busy_timeout`.
+- **Performance**: cache in-memory venue/coords durante la sync (niente N+1), marker mappa aggiornati per diff, niente doppio fetch col filtro area, **compressione gzip/br on-the-fly** (vendor-map 1,08 MB raw → ~236 kB br), build target `es2022` (niente warning BigInt di maplibre), dedup codice (statement morto, UA duplicato, helper condivisi).
+- **Mappa**: tile servite dal **proxy proprio** `GET /tiles/{z}/{x}/{y}.png` (upstream Wikimedia → OSM fallback con UA identificativo, validazione magic PNG, cache 2000 tile, `max-age=86400`); worker MapLibre con URL reale (`setWorkerUrl` + `?url`, fix "Worker failed to load"); MIME `.mjs`; CSP `worker-src 'self' blob:`; SW cache `v9` che esclude `/api/` e `/tiles/`; banner errore mappa + sonda tile in console.
+- **Dati**: fix prezzi (niente "gratis" da omaggi; outlier <5€ scartati se max ≥10€); dedup sagre doppia location (`_id` senza indirizzo).
 
 
 > Hardening & performance: `POST /api/sync` ora gira in background con mutex (niente sync sovrapposti) e token opzionale `SYNC_TOKEN`; `from` validato (niente injection SoQL/SPARQL); errori HTTP degli adapter con URL redacted (le API key non finiscono più in log/risposte); `_id` dei connettori usato come id evento (niente più collisioni fra sagre stessa giornata); cache venue/coords in-memory durante la sync (niente N+1); Nominatim non cachea più i 429/5xx; migrazioni DB via `PRAGMA user_version`; header di sicurezza + CSP + cache long su `/assets/*`; marker mappa aggiornati per diff; `limit`/`offset` validati; URL eventi sanificati a `http(s)`.
@@ -30,6 +34,14 @@
 --- lista + mappa MapLibre (limiti Nord Italia), filtri rapidi, salvataggio, multi-fonte (open data + JSON-LD + RSS + API key opzionali).
 
 App per cercare, salvare e visualizzare su **lista e mappa** gli eventi a Milano e in provincia.
+
+## Obiettivo
+
+Selezionare **eventi low-cost in locali piccoli** nelle **prossime 2 settimane (15 giorni)**:
+- **fasce di prezzo** Gratis / fino a 10€ / fino a 20€ / Cari con filtri API, chip e badge (prezzo da JSON-LD `offers`, campo `cost` TEC, `priceRanges` ticketing o testo "gratis / € 12 / da 5 a 15 euro"; outlier tipo 1€ di prevendita scartati quando il max ≥ 10€; "gratis" conta solo per ingresso/evento gratis, non per omaggi tipo birra/rinfresco);
+- **esclusione automatica di stadi, palazzetti, arene e grandi forum** (San Siro, Unipol/Mediolanum Forum, Arena Civica…) in fase di sync (`big=1`, mostrati solo con `includeBig=1`);
+- **finestra temporale 15 giorni** allineata fra sync e vista (gli eventi passati sono nascosti di default);
+- dedup per titolo+data+comune: la stessa sagra su due location conta una volta.
 
 ## Connettori eventi (formato normalizzato → tabella `events` + FTS5)
 
@@ -66,6 +78,16 @@ già registrate (match per nome case-insensitive) e i **pin curati** (`core/venu
 coordinate delle API. Poi gli eventi riutilizzano le coordinate del venue (`coordsFor`, match anche per
 contenimento nome): **una sola chiamata Nominatim per venue, non per evento**. API: `GET /api/venues`.
 Disabilitare la fase venue con `SYNC_VENUES=0`.
+
+## Sicurezza (stato attuale)
+
+- **Dipendenze**: `npm audit` 0 vulnerabilità; `maplibre-gl` 6.16.0 (fix GHSA-jrc7-96c5-q579, XSS sanitizer bypass nei popup; popup inoltre escapati a mano); server **zero dipendenze runtime** (`node:http` + `node:sqlite` + `fetch`).
+- **Header**: CSP `default-src 'self'` (+ `blob:` solo per il worker), `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer`; API sempre `Cache-Control: no-store`, asset hashati `immutable`.
+- **Endpoint mutanti**: `POST /api/sync` protetto da `SYNC_TOKEN` opzionale (confronto `timingSafeEqual`), mutex anti-sync-concorrenti, input date validato; `POST /api/events/:id` body JSON validato (max 64 kB, 413/400).
+- **Input API**: `q` sanificato per FTS5 (token quotati, max 8, niente injection), `limit`/`offset` interi validati, `from`/`to` date reali (400), `bbox` validato, `category`/`priceBand` allowlist; errori 500 generici (no leak di messaggi interni).
+- **Segreti**: nessun segreto nel repo (chiavi solo in env, mai in codice/log); URL esterni negli errori vengono **redacted** (query string rimossa).
+- **Tile**: servite solo dal proxy `/tiles/` con validazione magic PNG (il client non riceve mai 200 non-immagine) e path `z/x/y` validati (no SSRF); upstream con UA identificativo conforme alle tile policy.
+- **Statici**: path traversal bloccato, SPA fallback sicuro, MIME corretti (incl. `.mjs` per il worker).
 
 ## Stack
 
