@@ -78,8 +78,8 @@ interface Cluster {
 
 function cluster(events: MiEvent[], zoom: number): Array<Cluster | { single: MiEvent }> {
   const geo = events.filter((e) => e.lat != null && e.lon != null);
-  if (zoom >= 13 || geo.length < 2) return geo.map((e) => ({ single: e }));
-  const cell = zoom <= 10 ? 0.12 : 0.04;
+  if (zoom >= 11 || geo.length < 2) return geo.map((e) => ({ single: e }));
+  const cell = zoom <= 8 ? 0.12 : 0.05;
   const map = new Map<string, Cluster>();
   for (const e of geo) {
     const key = `${Math.floor((e.lat as number) / cell)},${Math.floor((e.lon as number) / cell)}`;
@@ -150,6 +150,7 @@ export function LightMap({
   const wrapRef = useRef<HTMLDivElement>(null);
   const pointersRef0 = useRef<Map<number, { x: number; y: number }>>(new Map());
   const pointersRef = pointersRef0;
+  const lastZRef = useRef(-1);
   const [view, setViewRaw] = useState<View>({ lat: MILAN.lat, lon: MILAN.lon, zoom: 10 });
   const setView = (u: View | ((v: View) => View)) =>
     setViewRaw((v) => {
@@ -242,7 +243,7 @@ export function LightMap({
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    ctx.imageSmoothingEnabled = false;
+    ctx.imageSmoothingEnabled = pointersRef.current.size > 0;
     const v = clampView(viewRef.current, w, h);
     viewRef.current = v;
 
@@ -266,6 +267,23 @@ export function LightMap({
           const dx = tx * ts - cx + w / 2;
           const dy = ty * ts - cy + h / 2;
           ctx.drawImage(t, dx, dy, ts, ts);
+        }
+      }
+      if (lastZRef.current !== z) {
+        lastZRef.current = z;
+        for (const dz of [-1, 1]) {
+          const zz = z + dz;
+          if (zz < 0 || zz > 19) continue;
+          const tsz = 256 * 2 ** (v.zoom - zz);
+          const cxz = ((v.lon + 180) / 360) * 256 * 2 ** v.zoom;
+          const cyz = project(v.lat, v.lon, v.zoom).y;
+          const x0z = Math.max(0, Math.floor((cxz - w / 2) / tsz));
+          const x1z = Math.min(2 ** zz - 1, Math.floor((cxz + w / 2) / tsz));
+          const y0z = Math.max(0, Math.floor((cyz - h / 2) / tsz));
+          const y1z = Math.min(2 ** zz - 1, Math.floor((cyz + h / 2) / tsz));
+          for (let tx = x0z; tx <= x1z; tx++) {
+            for (let ty = y0z; ty <= y1z; ty++) void loadTile(zz, tx, ty, bumpTiles);
+          }
         }
       }
     }
@@ -344,13 +362,14 @@ export function LightMap({
       const w = wrap.clientWidth;
       const h = wrap.clientHeight;
       const center = project(v.lat, v.lon, v.zoom);
-      for (const c of clusters) {
+      for (let i = clusters.length - 1; i >= 0; i--) {
+        const c = clusters[i];
         const lat = "single" in c ? (c.single.lat as number) : c.lat;
         const lon = "single" in c ? (c.single.lon as number) : c.lon;
         const p = project(lat, lon, v.zoom);
         const x = p.x - center.x + w / 2;
         const y = p.y - center.y + h / 2;
-        const size = "single" in c ? 24 : 38;
+        const size = "single" in c ? 32 : 46;
         if (Math.abs(mx - x) <= size / 2 && Math.abs(my - y) <= size / 2) return c;
       }
       return null;
@@ -418,7 +437,7 @@ export function LightMap({
     if (g.kind === "pan" && pointersRef.current.size === 1) {
       const dx = p.x - g.startX;
       const dy = p.y - g.startY;
-      if (Math.abs(dx) + Math.abs(dy) > 4) g.moved = true;
+      if (Math.abs(dx) + Math.abs(dy) > 12) g.moved = true;
       if (!g.moved) return;
       const wrap = wrapRef.current;
       const w = wrap?.clientWidth ?? 0;
