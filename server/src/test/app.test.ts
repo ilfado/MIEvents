@@ -341,3 +341,39 @@ test("tile proxy /tiles/{z}/{x}/{y}.png: cache, retina, validazione path, upstre
     server.close();
   }
 });
+
+test("tile proxy: fallback su secondo upstream (wikimedia 403 -> OSM ok), 502 se entrambi KO", async () => {
+  const png = Buffer.from([0x89, 0x50, 0x4e, 0x47]);
+  const seen: string[] = [];
+  const tileFetcher = (async (url: any) => {
+    const u = String(url);
+    seen.push(u);
+    if (u.includes("wikimedia")) return new Response("blocked", { status: 403 });
+    return new Response(png, { status: 200, headers: { "Content-Type": "image/png" } });
+  }) as unknown as typeof fetch;
+  const db = openDb(":memory:");
+  const server = createServer({ db, webDist: "/nonexistent", tileFetcher });
+  await new Promise<void>((r) => server.listen(0, r));
+  const port = (server.address() as AddressInfo).port;
+  try {
+    const t = await fetch(`http://127.0.0.1:${port}/tiles/12/2200/1400.png`);
+    assert.equal(t.status, 200);
+    assert.deepEqual(Buffer.from(await t.arrayBuffer()), png);
+    assert.equal(seen.length, 2);
+    assert.ok(seen[0].includes("wikimedia"));
+    assert.ok(seen[1].includes("tile.openstreetmap.org"));
+
+    const allFail = (async () => new Response("no", { status: 403 })) as unknown as typeof fetch;
+    const server2 = createServer({ db: openDb(":memory:"), webDist: "/nonexistent", tileFetcher: allFail });
+    await new Promise<void>((r) => server2.listen(0, r));
+    const port2 = (server2.address() as AddressInfo).port;
+    try {
+      const t2 = await fetch(`http://127.0.0.1:${port2}/tiles/12/2200/1401.png`);
+      assert.equal(t2.status, 502);
+    } finally {
+      server2.close();
+    }
+  } finally {
+    server.close();
+  }
+});

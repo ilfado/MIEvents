@@ -135,6 +135,20 @@ body {
 .btn-link { font-size: 0.78rem; font-weight: bold; color: var(--blue); text-transform: uppercase; letter-spacing: 1px; }
 
 .map-wrap { position: relative; }
+.map-error {
+  position: absolute;
+  top: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 20;
+  background: var(--red);
+  color: #fff;
+  padding: 6px 10px;
+  border-radius: 4px;
+  font-size: 12px;
+  max-width: 92%;
+  text-align: center;
+}
 .map-canvas {
   display: block; height: min(70vh, 640px); width: 100%;
   border: var(--border); box-shadow: var(--shadow); background: var(--bg);
