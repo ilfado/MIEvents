@@ -61,8 +61,11 @@ export interface SyncOptions {
   env?: NodeJS.ProcessEnv;
 }
 
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+
 export function syncWindow(now = new Date(), days = 15): { fromDate: string; toDate: string } {
   const from = now.toISOString().slice(0, 10);
   const to = new Date(now.getTime() + days * 86400000).toISOString().slice(0, 10);
+  if (!ISO_DATE.test(from) || !ISO_DATE.test(to)) throw new Error("invalid sync window");
   return { fromDate: from, toDate: to };
 }
