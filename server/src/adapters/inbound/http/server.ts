@@ -22,7 +22,7 @@ const SEC_HEADERS: Record<string, string> = {
   "Referrer-Policy": "no-referrer",
 };
 
-const COMPRESSIBLE_EXT = new Set([".html", ".js", ".css", ".json", ".svg", ".webmanifest", ".map"]);
+const COMPRESSIBLE_EXT = new Set([".html", ".js", ".mjs", ".css", ".json", ".svg", ".webmanifest", ".map"]);
 const compressedCache = new Map<string, { mtimeMs: number; enc: string; buf: Buffer }>();
 
 function pickEncoding(req: http.IncomingMessage): "br" | "gzip" | null {
@@ -156,6 +156,7 @@ function tokenMatches(provided: string, expected: string): boolean {
 const MIME: Record<string, string> = {
   ".html": "text/html; charset=utf-8",
   ".js": "text/javascript; charset=utf-8",
+  ".mjs": "text/javascript; charset=utf-8",
   ".css": "text/css; charset=utf-8",
   ".json": "application/json; charset=utf-8",
   ".svg": "image/svg+xml",
