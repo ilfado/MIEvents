@@ -174,6 +174,10 @@ export function createServer(deps: { db: DatabaseSync; webDist: string; events?:
   const tileCache = new Map<string, Buffer>();
   const TILE_CACHE_MAX = 2000;
   const TILE_UA = "MIEvents/1.3 (+https://github.com/ilfado/MIEvents; tile proxy)";
+  const TILE_UPSTREAMS = [
+    (z: number, x: number, y: number, r: string) => `https://maps.wikimedia.org/osm-intl/${z}/${x}/${y}${r}.png`,
+    (z: number, x: number, y: number, r: string) => `https://tile.openstreetmap.org/${z}/${x}/${y}${r}.png`,
+  ];
   const sendTile = async (res: http.ServerResponse, z: number, x: number, y: number, retina: string): Promise<void> => {
     const key = `${z}/${x}/${y}${retina}`;
     const headers: Record<string, string> = {
@@ -187,28 +191,37 @@ export function createServer(deps: { db: DatabaseSync; webDist: string; events?:
       res.end(hit);
       return;
     }
-    try {
-      const upstream = await tileFetcher(`https://maps.wikimedia.org/osm-intl/${z}/${x}/${y}${retina}.png`, {
-        headers: { "User-Agent": TILE_UA, Accept: "image/png" },
-        signal: AbortSignal.timeout(10000),
-      });
-      if (!upstream.ok) {
-        res.writeHead(502, headers);
-        res.end();
-        return;
+    let buf: Buffer | null = null;
+    let lastStatus = 0;
+    for (const up of TILE_UPSTREAMS) {
+      const url = up(z, x, y, retina);
+      try {
+        const upstream = await tileFetcher(url, {
+          headers: { "User-Agent": TILE_UA, Accept: "image/png" },
+          signal: AbortSignal.timeout(10000),
+        });
+        if (upstream.ok) {
+          buf = Buffer.from(await upstream.arrayBuffer());
+          break;
+        }
+        lastStatus = upstream.status;
+        console.error(`[tiles] upstream ${upstream.status} per ${key} da ${url.split("/").slice(0, 3).join("/")}`);
+      } catch {
+        console.error(`[tiles] timeout/errore upstream per ${key} da ${url.split("/").slice(0, 3).join("/")}`);
       }
-      const buf = Buffer.from(await upstream.arrayBuffer());
-      if (tileCache.size >= TILE_CACHE_MAX) {
-        const oldest = tileCache.keys().next().value;
-        if (oldest !== undefined) tileCache.delete(oldest);
-      }
-      tileCache.set(key, buf);
-      res.writeHead(200, { ...headers, "Content-Length": String(buf.length) });
-      res.end(buf);
-    } catch {
-      res.writeHead(504, headers);
-      res.end();
     }
+    if (!buf) {
+      res.writeHead(lastStatus === 403 || lastStatus === 429 ? 502 : 504, headers);
+      res.end();
+      return;
+    }
+    if (tileCache.size >= TILE_CACHE_MAX) {
+      const oldest = tileCache.keys().next().value;
+      if (oldest !== undefined) tileCache.delete(oldest);
+    }
+    tileCache.set(key, buf);
+    res.writeHead(200, { ...headers, "Content-Length": String(buf.length) });
+    res.end(buf);
   };
 
   return http.createServer(async (req, res) => {

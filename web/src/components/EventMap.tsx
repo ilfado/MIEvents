@@ -50,6 +50,7 @@ export function EventMap({
   const mapRef = useRef<MaplibreMap | null>(null);
   const markersRef = useRef<Map<string, { marker: Marker; sig: string }>>(new Map());
   const [ready, setReady] = useState(false);
+  const [mapError, setMapError] = useState<string | null>(null);
 
   const geoEvents = useMemo(() => events.filter((e) => e.lat != null && e.lon != null), [events]);
 
@@ -88,6 +89,11 @@ export function EventMap({
       attributionControl: { compact: true },
     });
     mapRef.current = map;
+    map.on("error", (e) => {
+      const msg = (e as { error?: { message?: string } }).error?.message ?? "errore caricamento tile/mappa";
+      console.error("[map] error:", e);
+      setMapError(msg);
+    });
     map.on("load", () => {
       setReady(true);
       map.resize();
@@ -165,6 +171,11 @@ export function EventMap({
 
   return (
     <div className="map-wrap">
+      {mapError && (
+        <div className="map-error" role="alert">
+          ERRORE MAPPA: {mapError}
+        </div>
+      )}
       <div className="map-controls">
         <button type="button" className="map-toggle" onClick={() => mapRef.current?.zoomIn()} aria-label="Zoom in">+</button>
         <button type="button" className="map-toggle" onClick={() => mapRef.current?.zoomOut()} aria-label="Zoom out">−</button>
