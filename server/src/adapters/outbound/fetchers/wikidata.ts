@@ -15,10 +15,9 @@ SELECT ?event ?label ?coord ?date ?end WHERE {
   ?event wdt:P31/wdt:P279* wd:Q1656682 .
   ?event wdt:P625 ?coord .
   ?event wdt:P131* wd:Q490 .
-  ?event wdt:P585 ?date .
+  OPTIONAL { ?event wdt:P585 ?date }
   OPTIONAL { ?event wdt:P582 ?end }
   OPTIONAL { ?event rdfs:label ?label . FILTER(LANG(?label) = "it") }
-  FILTER(?date >= "${ctx.fromDate}T00:00:00Z"^^<http://www.w3.org/2001/XMLSchema#dateTime> && ?date <= "${ctx.toDate}T23:59:59Z"^^<http://www.w3.org/2001/XMLSchema#dateTime>)
 } ORDER BY DESC(?date) LIMIT ${limit}`;
     const json = (await getJson(ctx.fetchImpl, `${ENDPOINT}?query=${encodeURIComponent(query)}`)) as {
       results?: { bindings: Array<Record<string, { value: string }>> };
@@ -33,7 +32,7 @@ SELECT ?event ?label ?coord ?date ?end WHERE {
       const lon = coord ? Number(coord[1]) : null;
       const lat = coord ? Number(coord[2]) : null;
       const date = b.date?.value.slice(0, 10);
-      if (!date) continue;
+      if (!date || date < ctx.fromDate || date > ctx.toDate) continue;
       events.push({
         sourceId: this.id,
         sourceName: "Wikidata",

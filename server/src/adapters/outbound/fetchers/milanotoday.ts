@@ -14,7 +14,7 @@ export const milanotodaySource: EventSource = {
   id: "milanotoday-eventi",
   async run(ctx): Promise<SourceResult> {
     const maxPages = ctx.limits["milanotodayPages"] ?? 1;
-    const maxDetails = ctx.limits["milanotodayDetails"] ?? 40;
+    const maxDetails = ctx.limits["milanotodayDetails"] ?? 60;
     const delay = 700;
     const from = ctx.fromDate;
     const to = ctx.toDate;

@@ -46,7 +46,7 @@ const PINS: [string, VenuePinPoint][] = [
   ["unipol forum", { lat: 45.4015, lon: 9.1423, address: "Via G. Di Vittorio 6, 20057 Assago (MI)", city: "ASSAGO" }],
   ["mediolanum forum", { lat: 45.4015, lon: 9.1423, address: "Via G. Di Vittorio 6, 20057 Assago (MI)", city: "ASSAGO" }],
   ["forum di milano", { lat: 45.4015, lon: 9.1423, address: "Via G. Di Vittorio 6, 20057 Assago (MI)", city: "ASSAGO" }],
-  ["unipol dome", { lat: 45.3937, lon: 9.2319, address: "Via Romualdo Bonfadini 148, 20148 Milano", city: "MILANO" }],
+  ["unipol dome", { lat: 45.4016, lon: 9.1420, address: "Via Giuseppe di Vittorio 6, 20057 Assago (MI)", city: "ASSAGO" }],  // Unipol Forum/Dome, Assago
   ["duomo di milano", { lat: 45.4642, lon: 9.1900, address: "Piazza del Duomo, 20122 Milano", city: "MILANO" }],
   ["duomo", { lat: 45.4642, lon: 9.1900, address: "Piazza del Duomo, 20122 Milano", city: "MILANO" }],
   ["cattedrale di milano", { lat: 45.4642, lon: 9.1900, address: "Piazza del Duomo, 20122 Milano", city: "MILANO" }],
