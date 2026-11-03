@@ -1,7 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Map as MaplibreMap, Marker, Popup } from "maplibre-gl";
+import { Map as MaplibreMap, Marker, Popup, setWorkerUrl } from "maplibre-gl";
 import type { LngLatBoundsLike } from "maplibre-gl";
+import workerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?url";
 import "maplibre-gl/dist/maplibre-gl.css";
+
+setWorkerUrl(workerUrl);
 import type { MiEvent } from "@mievents/shared";
 import { categoryLabel, formatDateRange } from "../format.js";
 
