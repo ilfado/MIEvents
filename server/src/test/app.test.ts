@@ -1,6 +1,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import type { AddressInfo } from "node:net";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import { openDb, createEventRepository, createVenueRepository, venueId } from "../adapters/outbound/repositories/sqlite.js";
 import { createServer } from "../adapters/inbound/http/server.js";
 import { runSync, draftId } from "../application/services/sync.js";
@@ -271,5 +274,35 @@ test("HTTP API end-to-end", async () => {
     assert.equal(badSync2.status, 400);
   } finally {
     server.close();
+  }
+});
+
+test("static: CSP con tile OSM in connect-src/img-src, cache immutable su /assets, compressione gzip/br", async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "mievents-web-"));
+  fs.writeFileSync(path.join(dir, "index.html"), "<!doctype html><title>t</title>");
+  fs.mkdirSync(path.join(dir, "assets"));
+  fs.writeFileSync(path.join(dir, "assets", "app-abc.js"), "console.log('x');".repeat(300));
+  const db = openDb(":memory:");
+  const server = createServer({ db, webDist: dir });
+  await new Promise<void>((r) => server.listen(0, r));
+  const port = (server.address() as AddressInfo).port;
+  try {
+    const idx = await fetch(`http://127.0.0.1:${port}/`);
+    const csp = idx.headers.get("content-security-policy") ?? "";
+    assert.ok(csp.includes("connect-src 'self' https://tile.openstreetmap.org"));
+    assert.ok(csp.includes("img-src 'self' data: blob: https://tile.openstreetmap.org"));
+    assert.equal(idx.headers.get("cache-control"), "no-cache");
+    const gz = await fetch(`http://127.0.0.1:${port}/assets/app-abc.js`, { headers: { "accept-encoding": "gzip" } });
+    assert.equal(gz.headers.get("content-encoding"), "gzip");
+    assert.equal(gz.headers.get("cache-control"), "public, max-age=31536000, immutable");
+    assert.ok((await gz.text()).includes("console.log"));
+    const br = await fetch(`http://127.0.0.1:${port}/assets/app-abc.js`, { headers: { "accept-encoding": "br, gzip" } });
+    assert.equal(br.headers.get("content-encoding"), "br");
+    const plain = await fetch(`http://127.0.0.1:${port}/assets/app-abc.js`, { headers: { "accept-encoding": "identity" } });
+    assert.equal(plain.headers.get("content-encoding"), null);
+    assert.ok((await plain.text()).includes("console.log"));
+  } finally {
+    server.close();
+    fs.rmSync(dir, { recursive: true, force: true });
   }
 });

@@ -11,8 +11,8 @@ export default defineConfig({
   },
   build: {
     outDir: "dist",
-    target: "es2019",
-    chunkSizeWarningLimit: 900,
+    target: "es2022",
+    chunkSizeWarningLimit: 1100,
     rollupOptions: {
       output: {
         manualChunks(id) {
