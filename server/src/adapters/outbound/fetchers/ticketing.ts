@@ -66,6 +66,7 @@ function mapBit(e: BitEvent, from: string): EventDraft | null {
 }
 
 export function ticketingSources(env: NodeJS.ProcessEnv): EventSource[] {
+  if ((env.TICKETING_SOURCES ?? "0") !== "1") return [];
   const keys = apiKeysFromEnv(env);
   const sources: EventSource[] = [];
 
@@ -92,6 +93,9 @@ export function ticketingSources(env: NodeJS.ProcessEnv): EventSource[] {
           const lon = venue.location?.longitude ? Number(venue.location.longitude) : null;
           const tmOk = lat !== null && lon !== null && Number.isFinite(lat) && Number.isFinite(lon) && inMilanoProvince(lat, lon);
           if (!tmOk) continue;
+          const pr = Array.isArray(e.priceRanges) ? e.priceRanges[0] : null;
+          const pmin = pr?.min != null ? Number(pr.min) : null;
+          const pmax = pr?.max != null ? Number(pr.max) : null;
           events.push({
             sourceId: "ticketmaster",
             sourceName: "Ticketmaster",
@@ -108,6 +112,8 @@ export function ticketingSources(env: NodeJS.ProcessEnv): EventSource[] {
             lat: lat !== null && Number.isFinite(lat) ? lat : null,
             lon: lon !== null && Number.isFinite(lon) ? lon : null,
             organizer: null,
+            priceMin: pmin !== null && Number.isFinite(pmin) ? pmin : null,
+            priceMax: pmax !== null && Number.isFinite(pmax) ? pmax : null,
           });
         }
         return { sourceId: "ticketmaster", events };

@@ -14,6 +14,8 @@ export interface EventDraft {
   lat: number | null;
   lon: number | null;
   organizer: string | null;
+  priceMin?: number | null;
+  priceMax?: number | null;
 }
 
 export interface SourceResult {
@@ -44,6 +46,7 @@ export interface SyncSummary {
   updated: number;
   geocoded: number;
   venuesSynced: number;
+  skipped: number;
   durationMs: number;
   errors: string[];
 }

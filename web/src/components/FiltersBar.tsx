@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { EVENT_CATEGORIES, type EventCategory } from "@mievents/shared";
+import { EVENT_CATEGORIES, PRICE_BANDS, PRICE_BAND_LABELS, type EventCategory } from "@mievents/shared";
 import { EMPTY_FILTERS, type Filters } from "../api.js";
 import { categoryLabel } from "../format.js";
 import { QUICK_CATEGORIES, quickDateRange, type QuickDate } from "../dates.js";
@@ -40,6 +40,7 @@ export function FiltersBar({
   }
   if (filters.city) active.push({ key: "city", label: `luogo: ${filters.city}`, clear: () => set({ city: "" }) });
   if (filters.category) active.push({ key: "cat", label: `tipo: ${categoryLabel(filters.category)}`, clear: () => set({ category: "" }) });
+  if (filters.priceBand) active.push({ key: "price", label: `prezzo: ${PRICE_BAND_LABELS[filters.priceBand]}`, clear: () => set({ priceBand: "" }) });
   if (filters.from || filters.to) {
     active.push({
       key: "date",
@@ -87,6 +88,17 @@ export function FiltersBar({
             onClick={() => set({ category: filters.category === c.value ? "" : (c.value as EventCategory) })}
           >
             {c.label}
+          </button>
+        ))}
+        {PRICE_BANDS.map((b) => (
+          <button
+            key={b}
+            type="button"
+            className={`chip ${filters.priceBand === b ? "chip-active" : ""}`}
+            aria-pressed={filters.priceBand === b}
+            onClick={() => set({ priceBand: filters.priceBand === b ? "" : b })}
+          >
+            {PRICE_BAND_LABELS[b]}
           </button>
         ))}
         <button

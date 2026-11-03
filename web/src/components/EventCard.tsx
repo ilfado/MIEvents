@@ -1,5 +1,5 @@
 import type { MiEvent } from "@mievents/shared";
-import { categoryLabel, formatDateRange, formatTime } from "../format.js";
+import { categoryLabel, formatDateRange, formatPrice, formatTime } from "../format.js";
 
 export function EventCard({
   event,
@@ -17,6 +17,9 @@ export function EventCard({
       <button className="card-main" onClick={() => onSelect(event)} type="button">
         <div className="card-top">
           <span className={`badge badge-${event.category}`}>{categoryLabel(event.category)}</span>
+          {formatPrice(event) && (
+            <span className={`badge badge-price badge-${event.priceBand ?? "sconosciuto"}`}>{formatPrice(event)}</span>
+          )}
           <span className="card-date">
             {formatDateRange(event)}
             {formatTime(event) ? ` · ${formatTime(event)}` : ""}

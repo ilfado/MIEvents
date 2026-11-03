@@ -1,9 +1,10 @@
-import type { EventCategory, EventsResponse, MiEvent } from "@mievents/shared";
+import type { EventCategory, EventsResponse, MiEvent, PriceBand } from "@mievents/shared";
 
 export interface Filters {
   q: string;
   city: string;
   category: EventCategory | "saved" | "";
+  priceBand: PriceBand | "";
   from: string;
   to: string;
   bbox?: string;
@@ -11,13 +12,14 @@ export interface Filters {
   geoOnly?: boolean;
 }
 
-export const EMPTY_FILTERS: Filters = { q: "", city: "", category: "", from: "", to: "" };
+export const EMPTY_FILTERS: Filters = { q: "", city: "", category: "", priceBand: "", from: "", to: "" };
 
 export async function fetchEvents(f: Filters): Promise<EventsResponse> {
   const params = new URLSearchParams();
   if (f.q) params.set("q", f.q);
   if (f.city) params.set("city", f.city);
   if (f.category) params.set("category", f.category);
+  if (f.priceBand) params.set("priceBand", f.priceBand);
   if (f.from) params.set("from", f.from);
   if (f.to) params.set("to", f.to);
   if (f.bbox) params.set("bbox", f.bbox);

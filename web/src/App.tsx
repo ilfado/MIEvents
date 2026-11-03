@@ -90,7 +90,7 @@ export default function App() {
   }, [filterByArea, load, filters]);
 
   const selected = useMemo(() => events.find((e) => e.id === selectedId) ?? null, [events, selectedId]);
-  const hasFilters = Boolean(filters.q.trim() || filters.city || filters.category || filters.from || filters.to || quickDate);
+  const hasFilters = Boolean(filters.q.trim() || filters.city || filters.category || filters.priceBand || filters.from || filters.to || quickDate);
 
   return (
     <div className="app">

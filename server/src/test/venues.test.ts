@@ -193,7 +193,7 @@ test("runSync: fase venue prima degli eventi -> zero geocode per venue seeded", 
 });
 
 test("ticketmaster events source: radius 100km, mapping venue con coordinate, filtro provincia", async () => {
-  const srcs = ticketingSources({ TICKETMASTER_API_KEY: "K" });
+  const srcs = ticketingSources({ TICKETING_SOURCES: "1", TICKETMASTER_API_KEY: "K" });
   const tm = srcs.find((s) => s.id === "ticketmaster")!;
   const urls: string[] = [];
   const mockFetch = (async (input: RequestInfo | URL) => {
@@ -224,7 +224,7 @@ test("ticketmaster events source: radius 100km, mapping venue con coordinate, fi
 });
 
 test("eventbrite source (gate EVENTBRITE_SEARCH=1): within 100km, expand venue+organizer, mapping e filtri", async () => {
-  const srcs = ticketingSources({ EVENTBRITE_USER_TOKEN: "T", EVENTBRITE_SEARCH: "1" });
+  const srcs = ticketingSources({ TICKETING_SOURCES: "1", EVENTBRITE_USER_TOKEN: "T", EVENTBRITE_SEARCH: "1" });
   const eb = srcs.find((s) => s.id === "eventbrite")!;
   const urls: string[] = [];
   const mockFetch = (async (input: RequestInfo | URL, init?: RequestInit) => {

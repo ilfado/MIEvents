@@ -2,6 +2,8 @@ import { createHash } from "node:crypto";
 import type { EventSource, VenueSource } from "../ports.js";
 import type { EventDraft, SourceResult, SyncOptions, SyncSummary } from "../../core/types.js";
 import { categorize } from "../../core/categorize.js";
+import { isBigEvent } from "../../core/big-events.js";
+import { parsePriceText } from "../../core/price.js";
 import { pinForVenue } from "../../core/venue-pins.js";
 import { syncWindow } from "../../core/types.js";
 import { runVenueSync } from "./venue-sync.js";
@@ -57,6 +59,7 @@ export async function runSync(deps: SyncDeps, opts: SyncOptions = {}): Promise<S
   let geocoded = 0;
   let fetched = 0;
   let venuesSynced = 0;
+  let skipped = 0;
 
   const extra = deps.extraSources ?? [];
   const sources = extra.length > 0
@@ -90,6 +93,17 @@ export async function runSync(deps: SyncDeps, opts: SyncOptions = {}): Promise<S
 
   const persist = async (drafts: EventDraft[]) => {
     for (const d of drafts) {
+      if (isBigEvent(d.venue, d.address, d.title)) {
+        skipped++;
+        continue;
+      }
+      if (d.priceMin == null && d.priceMax == null) {
+        const p = parsePriceText(`${d.title} ${d.description ?? ""}`);
+        if (p) {
+          d.priceMin = p.min;
+          d.priceMax = p.max;
+        }
+      }
       let lat = d.lat;
       let lon = d.lon;
       if (lat == null && (d.venue || d.address)) {
@@ -174,5 +188,5 @@ export async function runSync(deps: SyncDeps, opts: SyncOptions = {}): Promise<S
   deps.events.setSyncState("last_total", String(fetched));
   deps.events.setSyncState("last_venues", String(venuesSynced));
 
-  return { fetched, inserted, updated, geocoded, venuesSynced, durationMs: Date.now() - started, errors };
+  return { fetched, inserted, updated, geocoded, venuesSynced, skipped, durationMs: Date.now() - started, errors };
 }

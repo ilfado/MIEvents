@@ -7,6 +7,7 @@ import { wikidataSource } from "../adapters/outbound/fetchers/wikidata.js";
 import { newsRssSources } from "../adapters/outbound/fetchers/news-rss.js";
 import { ticketingSources, apiKeysFromEnv, bitArtistsFromEnv, DEFAULT_BIT_ARTISTS } from "../adapters/outbound/fetchers/ticketing.js";
 import { milanotodaySource, milanotodayRangeUrl } from "../adapters/outbound/fetchers/milanotoday.js";
+import { tribeEventiAtMilanoSource } from "../adapters/outbound/fetchers/tribe.js";
 import type { SourceContext } from "../application/ports.js";
 
 const CHEVENTI_LISTING = `<html><head><script type="application/ld+json">{"@type":"ItemList","itemListElement":[
@@ -215,27 +216,81 @@ test("news RSS source filters event+Milano items", async () => {
   assert.equal(res.events[0].sourceName, "ViviMilano Spettacoli");
 });
 
-test("milanotoday source walks listing -> detail JSON-LD", async () => {
-  const listing = `<html><a href="/eventi/wunder-mrkt-2026.html">x</a></html>`;
-  const detail = `<html><script type="application/ld+json">{"@type":"Event","name":"Wunder Mrkt","startDate":"2026-11-01","url":"https://wundermrkt.com/","location":{"name":"Spazio Profumo","address":"Via Binda 29, Milano"}}</script></html>`;
+test("milanotoday source walks listing -> detail JSON-LD (href anche con apici singoli) + prezzo dal testo", async () => {
+  const listing = `<html><a href='/eventi/wunder-mrkt-2026.html'>x</a><a href="/eventi/altra.html">y</a></html>`;
+  const detail = `<html><body><p>Prezzo: ingresso libero</p><script type="application/ld+json">{"@type":"Event","name":"Wunder Mrkt","startDate":"2026-11-01","url":"https://wundermrkt.com/","location":{"name":"Spazio Profumo","address":"Via Binda 29, Milano"}}</script></body></html>`;
+  const detailPaid = `<html><body><p>Biglietto da 15 euro</p><script type="application/ld+json">{"@type":"Event","name":"Altra","startDate":"2026-11-02","url":"https://altra.com/","location":{"name":"Circolo","address":"Via Roma 1, Milano"}}</script></body></html>`;
   const mockFetch = (async (input: RequestInfo | URL) => {
     const u = String(input);
     if (u.includes("/eventi/dal/")) return new Response(listing, { status: 200 });
     if (u.includes("wunder-mrkt")) return new Response(detail, { status: 200 });
+    if (u.includes("altra.html")) return new Response(detailPaid, { status: 200 });
     return new Response("<html></html>", { status: 200 });
   }) as typeof fetch;
   const res = await milanotodaySource.run(makeCtx({ fetchImpl: mockFetch, limits: { milanotodayDetails: 5 } }));
-  assert.equal(res.events.length, 1);
-  assert.equal(res.events[0].title, "Wunder Mrkt");
-  assert.equal(res.events[0].venue, "Spazio Profumo");
+  assert.equal(res.events.length, 2);
+  const wunder = res.events.find((e) => e.title === "Wunder Mrkt")!;
+  assert.equal(wunder.venue, "Spazio Profumo");
+  assert.equal(wunder.priceMin, 0);
+  assert.equal(wunder.priceMax, 0);
+  const altra = res.events.find((e) => e.title === "Altra")!;
+  assert.equal(altra.priceMin, 15);
+  assert.equal(altra.priceMax, 15);
 });
 
-test("ticketing sources only with keys; bandsintown artist-based mapping", async () => {
+test("tribe eventiatmilano: lookback recupera mostre lunghe in sovrapposizione; pagina 404 non azzera; cost -> prezzo", async () => {
+  const page1 = {
+    events: [
+      { id: 1, url: "https://www.eventiatmilano.it/evento/mostra-lunga/", title: "Mostra lunga", start_date: "2026-09-01 10:00:00", end_date: "2027-01-31 18:00:00", cost: "12" },
+      { id: 2, url: "https://www.eventiatmilano.it/evento/show/", title: "Show in finestra", start_date: "2026-11-10 20:00:00", end_date: "2026-11-10 23:00:00", cost: "Gratis" },
+      { id: 3, url: "https://www.eventiatmilano.it/evento/dopo/", title: "Dopo finestra", start_date: "2026-12-01 20:00:00", end_date: "2026-12-01 23:00:00", cost: "30" },
+      { id: 4, url: "https://www.eventiatmilano.it/evento/finita/", title: "Finita prima", start_date: "2026-09-01 10:00:00", end_date: "2026-10-01 18:00:00" },
+    ],
+    total: 4,
+    total_pages: 1,
+  };
+  const mockFetch = (async (input: RequestInfo | URL) => {
+    const u = String(input);
+    assert.ok(u.includes("start_date="));
+    assert.ok(!u.includes("end_date="));
+    return new Response(JSON.stringify(page1), { status: 200 });
+  }) as typeof fetch;
+  const res = await tribeEventiAtMilanoSource.run(makeCtx({ fetchImpl: mockFetch, fromDate: "2026-11-03", toDate: "2026-11-18" }));
+  assert.equal(res.events.length, 2);
+  const mostra = res.events.find((e) => e.title === "Mostra lunga")!;
+  assert.equal(mostra.priceMin, 12);
+  assert.equal(mostra.priceMax, 12);
+  const show = res.events.find((e) => e.title === "Show in finestra")!;
+  assert.equal(show.priceMin, 0);
+  assert.equal(show.priceMax, 0);
+});
+
+test("tribe: pagina fuori range (404) interrompe senza perdere gli eventi gia raccolti", async () => {
+  const full = Array.from({ length: 100 }, (_, i) => ({
+    id: i + 1,
+    url: `https://base.milano.it/event/e${i}/`,
+    title: `Evento ${i}`,
+    start_date: "2026-11-10 20:00:00",
+    end_date: "2026-11-10 23:00:00",
+  }));
+  const mockFetch = (async (input: RequestInfo | URL) => {
+    const u = String(input);
+    const page = Number(new URL(u).searchParams.get("page"));
+    if (page === 1) return new Response(JSON.stringify({ events: full, total: 150, total_pages: 2 }), { status: 200 });
+    return new Response(JSON.stringify({ code: "event-archive-page-not-found", message: "no", data: { status: 404 } }), { status: 404 });
+  }) as typeof fetch;
+  const res = await tribeBaseSource.run(makeCtx({ fetchImpl: mockFetch, fromDate: "2026-11-03", toDate: "2026-11-18" }));
+  assert.equal(res.events.length, 100);
+});
+
+test("ticketing sources off di default (TICKETING_SOURCES=1) e solo con chiavi; bandsintown artist-based", async () => {
   assert.equal(ticketingSources({}).length, 0);
-  assert.equal(ticketingSources({ TICKETMASTER_API_KEY: "K" }).length, 1);
-  assert.equal(ticketingSources({ EVENTBRITE_USER_TOKEN: "T" }).length, 0);
-  assert.equal(ticketingSources({ EVENTBRITE_USER_TOKEN: "T", EVENTBRITE_SEARCH: "1" }).length, 1);
-  const bit = ticketingSources({ BANDSINTWN_APP_ID: "A" });
+  assert.equal(ticketingSources({ TICKETMASTER_API_KEY: "K" }).length, 0);
+  assert.equal(ticketingSources({ TICKETING_SOURCES: "1" }).length, 0);
+  assert.equal(ticketingSources({ TICKETING_SOURCES: "1", TICKETMASTER_API_KEY: "K" }).length, 1);
+  assert.equal(ticketingSources({ TICKETING_SOURCES: "1", EVENTBRITE_USER_TOKEN: "T" }).length, 0);
+  assert.equal(ticketingSources({ TICKETING_SOURCES: "1", EVENTBRITE_USER_TOKEN: "T", EVENTBRITE_SEARCH: "1" }).length, 1);
+  const bit = ticketingSources({ TICKETING_SOURCES: "1", BANDSINTWN_APP_ID: "A" });
   assert.equal(bit.length, 1);
   assert.equal(bit[0].id, "bandsintown");
 
@@ -259,7 +314,7 @@ test("ticketing sources only with keys; bandsintown artist-based mapping", async
 
 test("ticketmaster/eventbrite/bandsintown: drop events without coords inside provincia MI", async () => {
   const { ticketingSources } = await import("../adapters/outbound/fetchers/ticketing.js");
-  const srcs = ticketingSources({ TICKETMASTER_API_KEY: "K", EVENTBRITE_USER_TOKEN: "T", EVENTBRITE_SEARCH: "1", BANDSINTWN_APP_ID: "A" });
+  const srcs = ticketingSources({ TICKETING_SOURCES: "1", TICKETMASTER_API_KEY: "K", EVENTBRITE_USER_TOKEN: "T", EVENTBRITE_SEARCH: "1", BANDSINTWN_APP_ID: "A" });
   const tm = srcs.find((s) => s.id === "ticketmaster")!;
   const mockFetch = (async () =>
     new Response(JSON.stringify({

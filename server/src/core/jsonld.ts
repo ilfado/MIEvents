@@ -1,5 +1,6 @@
 import { stripHtml, parseDateTime } from "./text.js";
 import type { EventDraft } from "./types.js";
+import type { ParsedPrice } from "./price.js";
 
 export interface LdEvent {
   "@type"?: string | string[];
@@ -8,6 +9,8 @@ export interface LdEvent {
   endDate?: string;
   url?: string;
   description?: string;
+  isAccessibleForFree?: boolean;
+  offers?: unknown;
   location?:
     | string
     | {
@@ -59,6 +62,33 @@ export function extractJsonLdEvents(html: string): LdEvent[] {
   return events;
 }
 
+function toNum(v: unknown): number | null {
+  const n = Number(v);
+  return Number.isFinite(n) && n >= 0 && n <= 100000 ? n : null;
+}
+
+export function ldPrice(ev: LdEvent): ParsedPrice | null {
+  if (ev.isAccessibleForFree === true) return { min: 0, max: 0, free: true };
+  const raw = ev.offers;
+  const offers = Array.isArray(raw) ? raw : raw ? [raw] : [];
+  let min: number | null = null;
+  let max: number | null = null;
+  for (const o of offers) {
+    if (!o || typeof o !== "object") continue;
+    const rec = o as Record<string, unknown>;
+    const low = toNum(rec.lowPrice ?? rec.price);
+    const high = toNum(rec.highPrice ?? rec.price);
+    if (low == null && high == null) continue;
+    min = min == null ? low : low == null ? min : Math.min(min, low);
+    max = max == null ? high : high == null ? max : Math.max(max, high);
+  }
+  if (min == null && max == null) return null;
+  const lo = min ?? max ?? 0;
+  const hi = max ?? min ?? 0;
+  if (lo === 0 && hi === 0) return { min: 0, max: 0, free: true };
+  return { min: lo, max: hi, free: false };
+}
+
 export function ldToDraft(ev: LdEvent, sourceId: string, sourceName: string): EventDraft | null {
   const types = Array.isArray(ev["@type"]) ? ev["@type"] : [ev["@type"]];
   if (!types.includes("Event") || !ev.name) return null;
@@ -88,6 +118,7 @@ export function ldToDraft(ev: LdEvent, sourceId: string, sourceName: string): Ev
       }
     }
   }
+  const price = ldPrice(ev);
   return {
     sourceId,
     sourceName,
@@ -104,5 +135,7 @@ export function ldToDraft(ev: LdEvent, sourceId: string, sourceName: string): Ev
     lat,
     lon,
     organizer: null,
+    priceMin: price?.min ?? null,
+    priceMax: price?.max ?? null,
   };
 }
