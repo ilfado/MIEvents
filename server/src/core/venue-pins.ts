@@ -19,7 +19,11 @@ const PINS: [string, VenuePinPoint][] = [
   ["magazzini generali", { lat: 45.4441, lon: 9.1953, address: "Via Pietrasanta 16, 20141 Milano", city: "MILANO" }],
   ["alcatraz", { lat: 45.4946, lon: 9.1825, address: "Via Valtellina 25, 20159 Milano", city: "MILANO" }],
   ["fabrique", { lat: 45.4593, lon: 9.2255, address: "Via Fantoli 28, 20138 Milano", city: "MILANO" }],
-  ["santeria", { lat: 45.4611, lon: 9.1747, address: "Via Ettore Ponti 33, 20143 Milano", city: "MILANO" }],
+  ["santeria toscana 31", { lat: 45.4456408, lon: 9.1883503, address: "Viale Toscana 31, 20145 Milano", city: "MILANO" }],
+  ["santeria toscana", { lat: 45.4456408, lon: 9.1883503, address: "Viale Toscana 31, 20145 Milano", city: "MILANO" }],
+  ["santeria paladini 8", { lat: 45.4698063, lon: 9.2345112, address: "Via Paladini 8, 20143 Milano", city: "MILANO" }],
+  ["santeria paladini", { lat: 45.4698063, lon: 9.2345112, address: "Via Paladini 8, 20143 Milano", city: "MILANO" }],
+  ["santeria", { lat: 45.4456408, lon: 9.1883503, address: "Viale Toscana 31, 20145 Milano", city: "MILANO" }],  // default = Toscana 31
   ["circolo magnolia", { lat: 45.4789, lon: 9.2389, address: "Via Circonvallazione Idroscalo 41, Segrate (MI)", city: "SEGRATE" }],
   ["magnolia", { lat: 45.4789, lon: 9.2389, address: "Via Circonvallazione Idroscalo 41, Segrate (MI)", city: "SEGRATE" }],
   ["leoncavallo", { lat: 45.5021, lon: 9.2243, address: "Via Antoine Watteau 7, 20159 Milano", city: "MILANO" }],
@@ -75,8 +79,19 @@ export function pinForVenue(venue: string | null, address: string | null = null)
     const v = norm(venue);
     const exact = PIN_INDEX.get(v);
     if (exact) return exact;
+    const vTokens = v.split(" ");
+    const matches: Array<[string, VenuePinPoint]> = [];
     for (const [key, pin] of PIN_INDEX) {
-      if ((key.length >= 6 || key.includes(" ")) && v.includes(key)) return pin;
+      const kTokens = key.split(" ");
+      const specificity = kTokens.filter((t) => t.length >= 3 && vTokens.includes(t)).length;
+      const exactSubstring = v.includes(key);
+      if (specificity >= 2 || (kTokens.length >= 2 && kTokens.every((t) => vTokens.includes(t))) || (key.length >= 6 && exactSubstring)) {
+        matches.push([key, pin]);
+      }
+    }
+    if (matches.length > 0) {
+      matches.sort((a, b) => b[0].length - a[0].length || a[0].localeCompare(b[0]));
+      return matches[0][1];
     }
   }
   if (address) {
