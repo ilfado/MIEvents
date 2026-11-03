@@ -1,12 +1,11 @@
-import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ErrorBoundary } from "./components/ErrorBoundary.js";
 import type { MiEvent } from "@mievents/shared";
 import { EMPTY_FILTERS, fetchCities, fetchEvents, toggleSaved, type Filters } from "./api.js";
 import { EventCard } from "./components/EventCard.js";
+import { LightMap } from "./components/LightMap.js";
 import { applyQuickDate, FiltersBar } from "./components/FiltersBar.js";
 import type { QuickDate } from "./dates.js";
-
-const EventMap = lazy(() => import("./components/EventMap.js").then((m) => ({ default: m.EventMap })));
 
 export default function App() {
   const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
@@ -150,9 +149,8 @@ export default function App() {
         </main>
       ) : (
         <main className="map-wrap">
-          <Suspense fallback={<div className="map-canvas map-fallback">CARICAMENTO MAPPA…</div>}>
-            <ErrorBoundary fallback={<div className="map-canvas map-fallback">MAPPA NON DISPONIBILE — USA LA LISTA</div>}>
-            <EventMap
+          <ErrorBoundary fallback={<div className="map-canvas map-fallback">MAPPA NON DISPONIBILE — USA LA LISTA</div>}>
+            <LightMap
               events={events}
               selectedId={selectedId}
               onSelect={onSelectFromMap}
@@ -162,8 +160,7 @@ export default function App() {
               showStreets={showStreets}
               onToggleStreets={() => setShowStreets((v) => !v)}
             />
-            </ErrorBoundary>
-          </Suspense>
+          </ErrorBoundary>
           {selected && (
             <div className="map-detail">
               <EventCard event={selected} selected onSelect={onSelectFromMap} onToggleSaved={onToggleSaved} />

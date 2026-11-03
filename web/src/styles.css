@@ -135,6 +135,27 @@ body {
 .btn-link { font-size: 0.78rem; font-weight: bold; color: var(--blue); text-transform: uppercase; letter-spacing: 1px; }
 
 .map-wrap { position: relative; }
+.map-popup {
+  position: absolute;
+  z-index: 15;
+  background: var(--paper);
+  border: 2px solid var(--ink);
+  box-shadow: 4px 4px 0 var(--ink);
+  padding: 8px 10px;
+  font-size: 12px;
+  max-width: 250px;
+}
+.map-popup-btn {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  padding: 2px 0;
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
 .map-error {
   position: absolute;
   top: 8px;
