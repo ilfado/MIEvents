@@ -250,22 +250,22 @@ export function LightMap({
     ctx.fillRect(0, 0, w, h);
 
     if (showStreets) {
-      const z = Math.round(v.zoom);
-      const scale = 256 * 2 ** z;
-      const cx = ((v.lon + 180) / 360) * scale;
+      const z = Math.min(19, Math.max(0, Math.round(v.zoom)));
+      const scaleF = 256 * 2 ** v.zoom;
+      const cx = ((v.lon + 180) / 360) * scaleF;
       const cy = project(v.lat, v.lon, v.zoom).y;
-      const x0 = Math.max(0, Math.floor((cx - w / 2) / 256));
-      const x1 = Math.floor((cx + w / 2) / 256);
-      const y0 = Math.max(0, Math.floor((cy - h / 2) / 256));
-      const y1 = Math.min(2 ** z - 1, Math.floor((cy + h / 2) / 256));
-      const tileSize = 256 * 2 ** (v.zoom - z);
+      const ts = 256 * 2 ** (v.zoom - z);
+      const x0 = Math.max(0, Math.floor((cx - w / 2) / ts));
+      const x1 = Math.min(2 ** z - 1, Math.floor((cx + w / 2) / ts));
+      const y0 = Math.max(0, Math.floor((cy - h / 2) / ts));
+      const y1 = Math.min(2 ** z - 1, Math.floor((cy + h / 2) / ts));
       for (let tx = x0; tx <= x1; tx++) {
         for (let ty = y0; ty <= y1; ty++) {
           const t = loadTile(z, tx, ty, bumpTiles);
           if (t === "loading" || t === "failed") continue;
-          const dx = tx * 256 - cx + w / 2;
-          const dy = ty * 256 - cy + h / 2;
-          ctx.drawImage(t, dx, dy, tileSize, tileSize);
+          const dx = tx * ts - cx + w / 2;
+          const dy = ty * ts - cy + h / 2;
+          ctx.drawImage(t, dx, dy, ts, ts);
         }
       }
     }
