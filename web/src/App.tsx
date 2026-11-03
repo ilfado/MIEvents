@@ -173,7 +173,7 @@ export default function App() {
       )}
 
       <footer className="footer">
-        Fonte: Regione Lombardia (CC0), MilanoToday, Cheventi.it, Wikidata · Mappa © OpenStreetMap contributors © CARTO
+        Fonte: Regione Lombardia (CC0), MilanoToday, Cheventi.it, Wikidata · Mappa © OpenStreetMap contributors · tile © Wikimedia Maps
       </footer>
     </div>
   );
