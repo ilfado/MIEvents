@@ -191,8 +191,10 @@ export function createServer(deps: { db: DatabaseSync; webDist: string; events?:
       res.end(hit);
       return;
     }
+    const PNG_MAGIC = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+    const isPng = (b: Buffer) => b.length > 8 && b.subarray(0, 8).equals(PNG_MAGIC);
     let buf: Buffer | null = null;
-    let lastStatus = 0;
+    let responded = false;
     for (const up of TILE_UPSTREAMS) {
       const url = up(z, x, y, retina);
       try {
@@ -201,17 +203,23 @@ export function createServer(deps: { db: DatabaseSync; webDist: string; events?:
           signal: AbortSignal.timeout(10000),
         });
         if (upstream.ok) {
-          buf = Buffer.from(await upstream.arrayBuffer());
-          break;
+          const b = Buffer.from(await upstream.arrayBuffer());
+          if (isPng(b)) {
+            buf = b;
+            break;
+          }
+          responded = true;
+          console.error(`[tiles] upstream 200 ma non-PNG (${b.length}B, magic ${b.subarray(0, 8).toString("hex")}) per ${key} da ${url.split("/").slice(0, 3).join("/")}`);
+          continue;
         }
-        lastStatus = upstream.status;
+        responded = true;
         console.error(`[tiles] upstream ${upstream.status} per ${key} da ${url.split("/").slice(0, 3).join("/")}`);
       } catch {
         console.error(`[tiles] timeout/errore upstream per ${key} da ${url.split("/").slice(0, 3).join("/")}`);
       }
     }
     if (!buf) {
-      res.writeHead(lastStatus === 403 || lastStatus === 429 ? 502 : 504, headers);
+      res.writeHead(responded ? 502 : 504, headers);
       res.end();
       return;
     }

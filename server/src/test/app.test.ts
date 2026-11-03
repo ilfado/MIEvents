@@ -312,7 +312,7 @@ test("static: CSP con tile OSM in connect-src/img-src, cache immutable su /asset
 
 test("tile proxy /tiles/{z}/{x}/{y}.png: cache, retina, validazione path, upstream 502", async () => {
   let calls = 0;
-  const png = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a]);
+  const png = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2]);
   const tileFetcher = (async () => {
     calls++;
     return new Response(png, { status: 200, headers: { "Content-Type": "image/png" } });
@@ -343,7 +343,7 @@ test("tile proxy /tiles/{z}/{x}/{y}.png: cache, retina, validazione path, upstre
 });
 
 test("tile proxy: fallback su secondo upstream (wikimedia 403 -> OSM ok), 502 se entrambi KO", async () => {
-  const png = Buffer.from([0x89, 0x50, 0x4e, 0x47]);
+  const png = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2]);
   const seen: string[] = [];
   const tileFetcher = (async (url: any) => {
     const u = String(url);
@@ -375,5 +375,37 @@ test("tile proxy: fallback su secondo upstream (wikimedia 403 -> OSM ok), 502 se
     }
   } finally {
     server.close();
+  }
+});
+
+test("tile proxy: upstream 200 non-PNG (HTML) viene scartato, si passa al fallback; 502 se nessuno valido", async () => {
+  const png = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3]);
+  const html = Buffer.from("<!doctype html><title>blocked</title>");
+  const mk = (mode: "html-first" | "all-html") =>
+    (async (url: any) => {
+      const u = String(url);
+      if (mode === "html-first" && u.includes("wikimedia")) return new Response(html, { status: 200, headers: { "Content-Type": "text/html" } });
+      if (mode === "all-html") return new Response(html, { status: 200, headers: { "Content-Type": "text/html" } });
+      return new Response(png, { status: 200, headers: { "Content-Type": "image/png" } });
+    }) as unknown as typeof fetch;
+  const db = openDb(":memory:");
+  const s1 = createServer({ db, webDist: "/nonexistent", tileFetcher: mk("html-first") });
+  await new Promise<void>((r) => s1.listen(0, r));
+  const p1 = (s1.address() as AddressInfo).port;
+  try {
+    const t = await fetch(`http://127.0.0.1:${p1}/tiles/11/1100/700.png`);
+    assert.equal(t.status, 200);
+    assert.deepEqual(Buffer.from(await t.arrayBuffer()), png);
+  } finally {
+    s1.close();
+  }
+  const s2 = createServer({ db: openDb(":memory:"), webDist: "/nonexistent", tileFetcher: mk("all-html") });
+  await new Promise<void>((r) => s2.listen(0, r));
+  const p2 = (s2.address() as AddressInfo).port;
+  try {
+    const t2 = await fetch(`http://127.0.0.1:${p2}/tiles/11/1100/701.png`);
+    assert.equal(t2.status, 502);
+  } finally {
+    s2.close();
   }
 });
