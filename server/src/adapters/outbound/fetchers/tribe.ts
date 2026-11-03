@@ -100,7 +100,7 @@ function tribeSource(opts: {
           events.push(draft);
         }
         const totalPages = data.total_pages ?? 1;
-        if (page >= totalPages || rows.length < perPage) break;
+        if (page >= totalPages || rows.length === 0) break;
         if (rows.every((r) => {
           const s = parseDateTime(r.start_date);
           return s !== null && s.date > ctx.toDate;

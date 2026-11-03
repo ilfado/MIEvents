@@ -189,18 +189,24 @@ test("lombardia area pubblica: sagre con geo dal campo location", async () => {
   assert.equal(noGeo.address, "PIAZZA DUOMO, MILANO, MI");
 });
 
-test("wikidata source parses QLever bindings", async () => {
-  const mockFetch = (async () =>
-    new Response(
+test("wikidata source parses QLever bindings e filtra per bbox provincia MI", async () => {
+  const mockFetch = (async (input: RequestInfo | URL) => {
+    const u = String(input);
+    assert.ok(u.includes("P585"), "query con data obbligatoria");
+    assert.ok(decodeURIComponent(u).includes("FILTER(?date >="), "filtro finestra server-side");
+    return new Response(
       JSON.stringify({
         results: {
           bindings: [
             { event: { value: "http://www.wikidata.org/entity/Q1" }, label: { value: "Milano Music Week" }, coord: { value: "POINT(9.19 45.4642)" }, date: { value: "2026-11-16T00:00:00Z" }, end: { value: "2026-11-22T00:00:00Z" } },
+            { event: { value: "http://www.wikidata.org/entity/Q2" }, label: { value: "Evento Tokyo" }, coord: { value: "POINT(139.7 35.6)" }, date: { value: "2026-11-16T00:00:00Z" } },
+            { event: { value: "http://www.wikidata.org/entity/Q3" }, label: { value: "Evento Roma" }, coord: { value: "POINT(12.5 41.9)" }, date: { value: "2026-11-16T00:00:00Z" } },
           ],
         },
       }),
       { status: 200 },
-    )) as typeof fetch;
+    );
+  }) as typeof fetch;
   const res = await wikidataSource.run(makeCtx({ fetchImpl: mockFetch }));
   assert.equal(res.events.length, 1);
   assert.equal(res.events[0].title, "Milano Music Week");
@@ -220,15 +226,22 @@ test("milanotoday source walks listing -> detail JSON-LD (href anche con apici s
   const listing = `<html><a href='/eventi/wunder-mrkt-2026.html'>x</a><a href="/eventi/altra.html">y</a></html>`;
   const detail = `<html><body><p>Prezzo: ingresso libero</p><script type="application/ld+json">{"@type":"Event","name":"Wunder Mrkt","startDate":"2026-11-01","url":"https://wundermrkt.com/","location":{"name":"Spazio Profumo","address":"Via Binda 29, Milano"}}</script></body></html>`;
   const detailPaid = `<html><body><p>Biglietto da 15 euro</p><script type="application/ld+json">{"@type":"Event","name":"Altra","startDate":"2026-11-02","url":"https://altra.com/","location":{"name":"Circolo","address":"Via Roma 1, Milano"}}</script></body></html>`;
+  const rss = `<?xml version="1.0"?><rss version="2.0"><channel><title>Eventi</title>
+<item><title>x</title><link>https://www.milanotoday.it/eventi/da-rss-2026.html</link></item>
+</channel></rss>`;
+  const detailRss = `<html><script type="application/ld+json">{"@type":"Event","name":"Da RSS","startDate":"2026-11-05","url":"https://rss.com/","location":{"name":"Circolo Rss","address":"Via Rss 1, Milano"}}</script></html>`;
   const mockFetch = (async (input: RequestInfo | URL) => {
     const u = String(input);
+    if (u.includes("rss/channels/eventi")) return new Response(rss, { status: 200 });
     if (u.includes("/eventi/dal/")) return new Response(listing, { status: 200 });
     if (u.includes("wunder-mrkt")) return new Response(detail, { status: 200 });
     if (u.includes("altra.html")) return new Response(detailPaid, { status: 200 });
+    if (u.includes("da-rss-2026")) return new Response(detailRss, { status: 200 });
     return new Response("<html></html>", { status: 200 });
   }) as typeof fetch;
-  const res = await milanotodaySource.run(makeCtx({ fetchImpl: mockFetch, limits: { milanotodayDetails: 5 } }));
-  assert.equal(res.events.length, 2);
+  const res = await milanotodaySource.run(makeCtx({ fetchImpl: mockFetch, limits: { milanotodayDetails: 8 } }));
+  assert.equal(res.events.length, 3);
+  assert.ok(res.events.some((e) => e.title === "Da RSS"));
   const wunder = res.events.find((e) => e.title === "Wunder Mrkt")!;
   assert.equal(wunder.venue, "Spazio Profumo");
   assert.equal(wunder.priceMin, 0);
@@ -263,6 +276,25 @@ test("tribe eventiatmilano: lookback recupera mostre lunghe in sovrapposizione; 
   const show = res.events.find((e) => e.title === "Show in finestra")!;
   assert.equal(show.priceMin, 0);
   assert.equal(show.priceMax, 0);
+});
+
+test("tribe: pagina con meno righe di per_page ma total_pages>1 viene comunque percorsa (TEC capa a 50 righe)", async () => {
+  const mk = (tag: string, n: number) => Array.from({ length: n }, (_, i) => ({
+    id: i + 1,
+    url: `https://base.milano.it/event/${tag}-${i}/`,
+    title: `Evento ${tag}-${i}`,
+    start_date: "2026-11-10 20:00:00",
+    end_date: "2026-11-10 23:00:00",
+  }));
+  const mockFetch = (async (input: RequestInfo | URL) => {
+    const u = String(input);
+    const page = Number(new URL(u).searchParams.get("page"));
+    if (page === 1) return new Response(JSON.stringify({ events: mk("p1", 50), total: 60, total_pages: 2 }), { status: 200 });
+    if (page === 2) return new Response(JSON.stringify({ events: mk("p2", 10), total: 60, total_pages: 2 }), { status: 200 });
+    return new Response("{}", { status: 404 });
+  }) as typeof fetch;
+  const res = await tribeBaseSource.run(makeCtx({ fetchImpl: mockFetch, fromDate: "2026-11-03", toDate: "2026-11-18" }));
+  assert.equal(res.events.length, 60);
 });
 
 test("tribe: pagina fuori range (404) interrompe senza perdere gli eventi gia raccolti", async () => {
