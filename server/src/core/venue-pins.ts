@@ -87,6 +87,8 @@ const PINS: [string, VenuePinPoint][] = [
   ["land club", { lat: 45.5867, lon: 8.8982, address: "Via Maestri del Lavoro 27, 20025 Legnano (MI)", city: "LEGNANO" }],
   ["land club legnano", { lat: 45.5867, lon: 8.8982, address: "Via Maestri del Lavoro 27, 20025 Legnano (MI)", city: "LEGNANO" }],
   ["land legnano", { lat: 45.5867, lon: 8.8982, address: "Via Maestri del Lavoro 27, 20025 Legnano (MI)", city: "LEGNANO" }],
+  ["santuario don gnocchi", { lat: 45.4490, lon: 9.1240, address: "Via Alfonso Capecelatro 70, 20153 Milano", city: "MILANO" }],
+  ["don gnocchi", { lat: 45.4490, lon: 9.1240, address: "Via Alfonso Capecelatro 70, 20153 Milano", city: "MILANO" }],
 ];
 
 const PIN_INDEX = new Map(PINS.map(([key, pin]) => [norm(key), pin]));
