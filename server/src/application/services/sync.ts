@@ -169,6 +169,10 @@ export async function runSync(deps: SyncDeps, opts: SyncOptions = {}): Promise<S
         }
       }
       const category = categorize(`${d.title} ${d.description ?? ""}`);
+      if ((category === "concerto" || category === "teatro") && d.priceMax != null && d.priceMax < 5) {
+        d.priceMin = null;
+        d.priceMax = null;
+      }
       const res = deps.events.upsertEvent({
         ...d,
         id: draftId(d),

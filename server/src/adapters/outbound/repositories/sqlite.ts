@@ -206,6 +206,13 @@ function parseBbox(bbox: string): [number, number, number, number] | null {
   return [s, w, n, e];
 }
 
+const PRICE_BAND_INCLUSIVE: Record<PriceBand, PriceBand[]> = {
+  gratis: ["gratis"],
+  fino10: ["gratis", "fino10"],
+  fino20: ["gratis", "fino10", "fino20"],
+  cari: ["cari"],
+};
+
 export function createEventRepository(db: DatabaseSync): EventRepository {
   const upsertDraft = db.prepare(`
     INSERT INTO events (
@@ -267,8 +274,9 @@ export function createEventRepository(db: DatabaseSync): EventRepository {
         if (!PRICE_BANDS.includes(f.priceBand)) {
           throw Object.assign(new Error(`Invalid priceBand: ${f.priceBand}`), { statusCode: 400 });
         }
-        clauses.push("price_band = ?");
-        params.push(f.priceBand);
+        const bands = PRICE_BAND_INCLUSIVE[f.priceBand];
+        clauses.push(`price_band IN (${bands.map(() => "?").join(",")})`);
+        params.push(...bands);
       }
       if (!f.includeBig) clauses.push("big = 0");
       if (f.from) {

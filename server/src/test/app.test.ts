@@ -192,8 +192,8 @@ test("grandi eventi saltati in sync; prezzo dal testo persistito; filtro priceBa
   assert.equal(got["SHOW CARO"].priceBand, "cari");
   assert.equal(got["SHOW CARO"].priceMin, 45);
   assert.equal(events.listEvents({ all: true, priceBand: "gratis" }).total, 1);
-  assert.equal(events.listEvents({ all: true, priceBand: "fino10" }).total, 1);
-  assert.equal(events.listEvents({ all: true, priceBand: "fino20" }).total, 0);
+  assert.equal(events.listEvents({ all: true, priceBand: "fino10" }).total, 2);
+  assert.equal(events.listEvents({ all: true, priceBand: "fino20" }).total, 2);
   assert.equal(events.listEvents({ all: true, priceBand: "cari" }).total, 1);
   assert.throws(() => events.listEvents({ all: true, priceBand: "zzz" as never }), /priceBand/);
   events.upsertEvent({ ...big, id: "big1", category: "concerto", saved: false, fetchedAt: "2026-11-03T00:00:00Z" } as never);
@@ -409,4 +409,18 @@ test("tile proxy: upstream 200 non-PNG (HTML) viene scartato, si passa al fallba
   } finally {
     s2.close();
   }
+});
+
+test("prezzo 1€ su concerto/teatro -> azzerato (sconosciuto), non fascia fino10", async () => {
+  const db = openDb(":memory:");
+  const events = createEventRepository(db);
+  const venues = createVenueRepository(db);
+  const cheapShow = { ...DRAFT, title: "CONCERTO A 1 EURO", description: "biglietto 1 euro", url: "https://example.org/show1", venue: "Circolo X", address: "Via inventata 9, Milano", city: "MILANO" };
+  const realShow = { ...DRAFT, title: "CONCERTO VERO", description: "biglietto 12 euro", url: "https://example.org/show2", venue: "Circolo Y", address: "Via inventata 10, Milano", city: "MILANO" };
+  await runSync({ events, venues, geocoder: mockGeocoder(), extraSources: [testSource([cheapShow, realShow])] }, { env: {}, syncVenues: false, geocode: false });
+  const all = events.listEvents({ all: true });
+  const byTitle = Object.fromEntries(all.events.map((e) => [e.title, e]));
+  assert.equal(byTitle["CONCERTO A 1 EURO"].priceBand, null);
+  assert.equal(byTitle["CONCERTO VERO"].priceBand, "fino20");
+  assert.equal(events.listEvents({ all: true, priceBand: "fino10" }).total, 0);
 });
