@@ -131,20 +131,20 @@ export function LightMap({
   events,
   selectedId,
   onSelect,
+  onShowInList,
+  onBackgroundTap,
   onBbox,
   filterByArea,
   onToggleArea,
-  showStreets,
-  onToggleStreets,
 }: {
   events: MiEvent[];
   selectedId: string | null;
   onSelect: (e: MiEvent) => void;
+  onShowInList: (e: MiEvent) => void;
+  onBackgroundTap: () => void;
   onBbox: (bbox: string) => void;
   filterByArea: boolean;
   onToggleArea: () => void;
-  showStreets: boolean;
-  onToggleStreets: () => void;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -250,7 +250,7 @@ export function LightMap({
     ctx.fillStyle = "#f2f0ea";
     ctx.fillRect(0, 0, w, h);
 
-    if (showStreets) {
+    {
       const z = Math.min(19, Math.max(0, Math.round(v.zoom)));
       const scaleF = 256 * 2 ** v.zoom;
       const cx = ((v.lon + 180) / 360) * scaleF;
@@ -289,7 +289,7 @@ export function LightMap({
     }
 
     const grid = 64;
-    ctx.strokeStyle = showStreets ? "rgba(17,17,17,0.06)" : "#e3e0d8";
+    ctx.strokeStyle = "rgba(17,17,17,0.06)";
     ctx.lineWidth = 1;
     for (let x = (w / 2) % grid; x < w; x += grid) {
       ctx.beginPath();
@@ -339,7 +339,7 @@ export function LightMap({
         ctx.fillText(String(c.events.length), x, y + 1);
       }
     }
-  }, [clusters, selectedId, showStreets, tilesVersion, bumpTiles]);
+  }, [clusters, selectedId, tilesVersion, bumpTiles]);
 
   useEffect(() => {
     drawRef.current = draw;
@@ -462,6 +462,7 @@ export function LightMap({
       const hit = pick(e.clientX - rect.left, e.clientY - rect.top);
       if (!hit) {
         setPopup(null);
+        onBackgroundTap();
         return;
       }
       if ("single" in hit) {
@@ -518,14 +519,6 @@ export function LightMap({
         >
           {filterByArea ? "■ area: on" : "□ area: off"}
         </button>
-        <button
-          type="button"
-          className={`map-toggle ${showStreets ? "on" : ""}`}
-          aria-pressed={showStreets}
-          onClick={onToggleStreets}
-        >
-          {showStreets ? "■ strade: on" : "□ strade: off"}
-        </button>
       </div>
       <canvas
         ref={canvasRef}
@@ -559,7 +552,7 @@ export function LightMap({
               {popup.event.venue ? `${popup.event.venue} — ` : ""}
               {popup.event.city}
               <br />
-              <button type="button" className="map-popup-btn" onClick={() => onSelect(popup.event as MiEvent)}>
+              <button type="button" className="map-popup-btn" onClick={() => popup.event && onShowInList(popup.event)}>
                 VEDI IN LISTA
               </button>
             </>

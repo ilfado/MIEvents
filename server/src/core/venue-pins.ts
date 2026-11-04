@@ -70,6 +70,18 @@ const PINS: [string, VenuePinPoint][] = [
   ["idroscalo", { lat: 45.4789, lon: 9.2389, address: "Via Circonvallazione Idroscalo, Segrate (MI)", city: "SEGRATE" }],
   ["cascina nascosta", { lat: 45.4856, lon: 9.1711, address: "Via Tartaglia 20, 20154 Milano", city: "MILANO" }],
   ["mare culturale urbano", { lat: 45.4856, lon: 9.1711, address: "Via Tartaglia 20, 20154 Milano", city: "MILANO" }],
+  ["auditorium san fedele", { lat: 45.4663, lon: 9.1920, address: "Piazza San Fedele 4, 20121 Milano", city: "MILANO" }],
+  ["san fedele", { lat: 45.4663, lon: 9.1920, address: "Piazza San Fedele 4, 20121 Milano", city: "MILANO" }],
+  ["darsena", { lat: 45.4515, lon: 9.1735, address: "Darsena, Porta Ticinese, 20143 Milano", city: "MILANO" }],
+  ["darsena milano", { lat: 45.4515, lon: 9.1735, address: "Darsena, Porta Ticinese, 20143 Milano", city: "MILANO" }],
+  ["los chicos", { lat: 45.4615, lon: 9.1935, address: "Via Maroncelli 19, 20123 Milano", city: "MILANO" }],
+  ["teatro della quattordicesima", { lat: 45.4530, lon: 9.2050, address: "Via Olio 18, Milano", city: "MILANO" }],
+  ["teatro xiv", { lat: 45.4530, lon: 9.2050, address: "Via Olio 18, Milano", city: "MILANO" }],
+  ["associazione culturale cea", { lat: 45.4820, lon: 9.2280, address: "Via Tadino 3, 20131 Milano", city: "MILANO" }],
+  ["c e a", { lat: 45.4820, lon: 9.2280, address: "Via Tadino 3, 20131 Milano", city: "MILANO" }],
+  ["cea", { lat: 45.4820, lon: 9.2280, address: "Via Tadino 3, 20131 Milano", city: "MILANO" }],
+  ["casa cardinale ildefonso schuster", { lat: 45.4680, lon: 9.1840, address: "Via Sant'Antonio 5, 20122 Milano", city: "MILANO" }],
+  ["casa delle zucche", { lat: 45.0660, lon: 7.3890, address: "Via Vittorio Emanuele 69, 10020 Andezeno (TO)", city: "ANDEZENO" }],
 ];
 
 const PIN_INDEX = new Map(PINS.map(([key, pin]) => [norm(key), pin]));

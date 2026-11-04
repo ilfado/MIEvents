@@ -371,7 +371,7 @@ test("env helpers", () => {
   assert.ok(DEFAULT_BIT_ARTISTS.length >= 40);
 });
 
-test("lombardia-sagre: stessa sagra con doppia location -> stesso _id (no duplicati in DB)", async () => {
+test("lombardia-sagre: stessa sagra con doppia location/comune (Cornaredo->Paderno) -> stesso _id", async () => {
   const base = {
     istat: null, comune: "SENAGO", prov: "MI", denom: "CALDARROSTE DI SENAGO", tipo: null, n_ediz: null,
     descriz: null, data_in: "2026-11-07", ora_in: null, data_fine: "2026-11-08", ora_fine: null,
@@ -379,7 +379,7 @@ test("lombardia-sagre: stessa sagra con doppia location -> stesso _id (no duplic
   };
   const rows = [
     { ...base, toponimo: "Piazza A", indirizzo: "Via Roma", civico: "1" },
-    { ...base, toponimo: "Piazza B", indirizzo: "Via Milano", civico: "22" },
+    { ...base, toponimo: "Piazza B", indirizzo: "Via Milano", civico: "22", comune: "PADERNO DUGNANO" },
   ];
   const mockFetch = (async () => new Response(JSON.stringify(rows), { status: 200, headers: { "Content-Type": "application/json" } })) as unknown as typeof fetch;
   const res = await lombardiaSagreSource.run(makeCtx({ fetchImpl: mockFetch, fromDate: "2026-11-01", toDate: "2026-11-30" }));
