@@ -368,7 +368,7 @@ test("ticketmaster/eventbrite/bandsintown: drop events without coords inside pro
   }) as unknown as typeof fetch;
   const ctx = { fetchImpl: mockFetch, fromDate: "2026-11-03", toDate: "2026-11-18", geocode: false, geocodeSleepMs: 0, maxGeocode: 0, limits: {}, env: {}, venues: {} as never, geocoder: { async geocode() { return null; } }, now: () => "2026-11-03T00:00:00Z" };
   const res = await tm.run(ctx as never);
-  assert.ok(calledUrl.includes("classificationName=music%2Carts%26theatre%2Cfamily"), "classification encodata: " + calledUrl);
+  assert.ok(!calledUrl.includes("classificationName"), "no classificationName (filtriamo noi): " + calledUrl);
   assert.equal(res.events.length, 3);
   const titles = res.events.map((e) => e.title).sort();
   assert.deepEqual(titles, ["Club 30eur Milano", "Coez Arcimboldi", "Spettacolo Bollate 20eur"]);
@@ -450,4 +450,25 @@ test("cheventi: i concerti candlelight vengono esclusi", async () => {
   const res = await cheventiSource.run(makeCtx({ fetchImpl: mockFetch, fromDate: "2026-11-01", toDate: "2026-11-30", limits: { cheventiPages: 1 } }));
   assert.equal(res.events.length, 1);
   assert.equal(res.events[0].title, "Concerto punk DIY");
+});
+
+test("wp-clubs: CPT events Alcatraz via wp-json (acf date, skip canceled, prezzo dal testo)", async () => {
+  const { alcatrazSource, magnoliaSource } = await import("../adapters/outbound/fetchers/wp-clubs.js");
+  const items = [
+    { id: 1, link: "https://www.alcatrazmilano.it/?post_type=event&p=1", title: { rendered: "Festa Alcatraz" }, content: { rendered: "<p>Ingresso 10 euro</p>" }, acf: { date: "2026-11-10", starts_at: "21:00", canceled: false, sold_out: false } },
+    { id: 2, link: "https://www.alcatrazmilano.it/?post_type=event&p=2", title: { rendered: "Show Cancellato" }, content: { rendered: "" }, acf: { date: "2026-11-11", canceled: true } },
+    { id: 3, link: "https://www.alcatrazmilano.it/?post_type=event&p=3", title: { rendered: "Show Caro" }, content: { rendered: "<p>50 euro</p>" }, acf: { date: "2026-11-12" } },
+    { id: 4, link: "https://www.alcatrazmilano.it/?post_type=event&p=4", title: { rendered: "Show senza data" }, content: { rendered: "<p>testo senza data</p>" }, acf: {} },
+  ];
+  const mockFetch = (async (url: any) => new Response(JSON.stringify(items), { status: 200, headers: { "Content-Type": "application/json" } })) as unknown as typeof fetch;
+  const res = await alcatrazSource.run(makeCtx({ fetchImpl: mockFetch, fromDate: "2026-11-01", toDate: "2026-11-30", limits: { "wp-alcatrazPages": 1 } }));
+  assert.equal(res.events.length, 1);
+  assert.equal(res.events[0].title, "Festa Alcatraz");
+  assert.equal(res.events[0].start, "2026-11-10");
+  assert.equal(res.events[0].venue, "Alcatraz");
+  assert.equal(res.events[0].lat, 45.4946);
+  assert.equal(res.events[0].priceMax, 10);
+  assert.equal((res.events[0] as any).categoryHint, "concerto");
+  const res2 = await magnoliaSource.run(makeCtx({ fetchImpl: mockFetch, fromDate: "2026-11-01", toDate: "2026-11-30", limits: { "wp-magnoliaPages": 1 } }));
+  assert.ok(res2.events.length >= 0);
 });

@@ -200,3 +200,9 @@ I locali/location sono indicizzati in una tabella dedicata `venues(id, name, add
 
 ## Cheventi.it
 - ora esclude i concerti `candlelight` (titolo match `/candlelight/i`)
+
+## Club WP (Alcatraz, Magnolia) — CPT via wp-json
+- Alcatraz: `alcatrazmilano.it/wp-json/wp/v2/events` (ACF: date, starts_at, canceled, sold_out, tickets_online_url)
+- Magnolia: `circolomagnolia.it/wp-json/wp/v2/event_listing` (REST dà titolo/link; data da acf/meta/testo, altrimenti skip)
+- Venue fissa dal pin (Alcatraz / Circolo Magnolia) → coordinate pronte; prezzo da ACF `price` o testo; skip canceled/sold_out
+- Filtro globale in sync: `priceMax >= 35€` → skip (tutte le fonti)

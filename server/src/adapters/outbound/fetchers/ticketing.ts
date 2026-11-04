@@ -79,7 +79,7 @@ export function ticketingSources(env: NodeJS.ProcessEnv): EventSource[] {
         const end = fmt(new Date(`${ctx.toDate}T23:59:59Z`));
         const url =
           `https://app.ticketmaster.com/discovery/v2/events.json?apikey=${encodeURIComponent(apiKey)}` +
-          `&latLong=45.4642,9.19&radius=100&unit=km&classificationName=${encodeURIComponent("music,arts&theatre,family")}` +
+          `&latLong=45.4642,9.19&radius=100&unit=km` +
           `&startDateTime=${encodeURIComponent(from)}&endDateTime=${encodeURIComponent(end)}&size=${ctx.limits["ticketmasterSize"] ?? 100}&sort=date,asc`;
         const json = (await getJson(ctx.fetchImpl, url)) as { _embedded?: { events?: Array<Record<string, any>> } };
         const events: EventDraft[] = [];
