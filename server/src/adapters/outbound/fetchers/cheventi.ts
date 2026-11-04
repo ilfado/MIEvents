@@ -29,6 +29,7 @@ export const cheventiSource: EventSource = {
         for (const ev of extractJsonLdEvents(html)) {
           const draft = ldToDraft(ev, this.id, "Cheventi.it");
           if (!draft || !draft.url) continue;
+          if (/candlelight/i.test(draft.title)) continue;
           if (draft.start < ctx.fromDate || draft.start > ctx.toDate) continue;
           if (draft.lat !== null && draft.lon !== null && !inMilanoProvince(draft.lat, draft.lon)) continue;
           if (seen.has(draft.url)) continue;

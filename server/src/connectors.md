@@ -187,3 +187,16 @@ I locali/location sono indicizzati in una tabella dedicata `venues(id, name, add
 - I feed generali di MilanoToday / Il Giorno / Arci contengono **cronaca**, non eventi strutturati:
   rimossi dai connettori attivi. Restano validi solo per āeventiā citati dentro articoli, ma senza
   data/luogo affidabili: producono rumore (es. "Sorpresi a spacciare droga durante il festival musicale").
+
+## Metalitalia (agenda concerti metal)
+- Listing: `https://metalitalia.com/category/agenda/` (+ `/page/N/`) → link `/evento/<slug>`
+- Dettaglio: JSON-LD `Event` (startDate, name, location.address, offers) → `ldToDraft`
+- Filtro: geo in provincia MI oppure indirizzo/venue/città match `MI_CITY_RE`; finestra 15gg; max 40 dettagli, delay 700ms
+
+## Radio Punk (date concerti punk DIY)
+- Listing: `https://radiopunk.it/evento/` → link `?event=<id>`
+- Dettaglio: riga testo `DD/MM/YYYY TITOLO 📍 CITTÀ @VENUE` → start/city/venue; prezzo da `parsePriceText`
+- Filtro: città match `MI_CITY_RE` (provincia MI), finestra 15gg; max 40 dettagli, delay 700ms; geo via venue-pins/Nominatim
+
+## Cheventi.it
+- ora esclude i concerti `candlelight` (titolo match `/candlelight/i`)

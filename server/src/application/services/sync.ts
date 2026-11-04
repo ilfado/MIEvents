@@ -12,6 +12,8 @@ import { lombardiaAreaPubblicaSource } from "../../adapters/outbound/fetchers/lo
 import { tribeSources } from "../../adapters/outbound/fetchers/tribe.js";
 import { milanotodaySource } from "../../adapters/outbound/fetchers/milanotoday.js";
 import { cheventiSource } from "../../adapters/outbound/fetchers/cheventi.js";
+import { metalitaliaSource } from "../../adapters/outbound/fetchers/metalitalia.js";
+import { radiopunkSource } from "../../adapters/outbound/fetchers/radiopunk.js";
 import { wikidataSource } from "../../adapters/outbound/fetchers/wikidata.js";
 import { santeriaSource } from "../../adapters/outbound/fetchers/wp-venues.js";
 import { newsRssSources } from "../../adapters/outbound/fetchers/news-rss.js";
@@ -34,6 +36,8 @@ export function defaultSources(env: NodeJS.ProcessEnv): EventSource[] {
     ...tribeSources,
     milanotodaySource,
     cheventiSource,
+    metalitaliaSource,
+    radiopunkSource,
     wikidataSource,
     santeriaSource,
     ...newsRssSources,
