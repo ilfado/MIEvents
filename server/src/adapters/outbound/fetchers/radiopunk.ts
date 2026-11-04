@@ -44,6 +44,7 @@ export const radiopunkSource: EventSource = {
         lat: null,
         lon: null,
         organizer: "Radio Punk",
+        categoryHint: "concerto",
         priceMin: price?.min ?? null,
         priceMax: price?.max ?? null,
       });

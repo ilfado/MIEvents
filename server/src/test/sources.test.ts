@@ -351,8 +351,10 @@ test("ticketmaster/eventbrite/bandsintown: drop events without coords inside pro
   const { ticketingSources } = await import("../adapters/outbound/fetchers/ticketing.js");
   const srcs = ticketingSources({ TICKETING_SOURCES: "1", TICKETMASTER_API_KEY: "K", EVENTBRITE_USER_TOKEN: "T", EVENTBRITE_SEARCH: "1", BANDSINTWN_APP_ID: "A" });
   const tm = srcs.find((s) => s.id === "ticketmaster")!;
-  const mockFetch = (async () =>
-    new Response(JSON.stringify({
+  let calledUrl = "";
+  const mockFetch = (async (url: any) => {
+    calledUrl = String(url);
+    return new Response(JSON.stringify({
       _embedded: { events: [
         { name: "Yung Kai Singapore", dates: { start: { localDate: "2026-11-10" } }, _embedded: { venues: [{ name: "Singapore Expo", location: { latitude: "1.33", longitude: "103.9" } }] } },
         { name: "Evento senza venue", dates: { start: { localDate: "2026-11-10" } } },
@@ -360,13 +362,19 @@ test("ticketmaster/eventbrite/bandsintown: drop events without coords inside pro
         { name: "Lontano 120km", dates: { start: { localDate: "2026-11-10" } }, _embedded: { venues: [{ name: "Arena Lontana", location: { latitude: "46.5", longitude: "10.6" } }] } },
         { name: "Concerto San Siro 50eur", dates: { start: { localDate: "2026-11-11" } }, priceRanges: [{ min: 50, max: 80 }], _embedded: { venues: [{ name: "Stadio San Siro", address: { line1: "Piazzale dello Sport 5" }, location: { latitude: "45.4781", longitude: "9.1240" } }] } },
         { name: "Club 30eur Milano", dates: { start: { localDate: "2026-11-12" } }, priceRanges: [{ min: 25, max: 30 }], _embedded: { venues: [{ name: "Circolo Piccolo", city: { name: "Milano" }, location: { latitude: "45.4642", longitude: "9.19" } }] } },
+        { name: "Spettacolo Bollate 20eur", dates: { start: { localDate: "2026-11-07" } }, priceRanges: [{ min: 20, max: 20 }], _embedded: { venues: [{ name: "Teatro di Bollate", city: { name: "Bollate" }, address: { line1: "Via Roma 1" } }] } },
       ] },
-    }), { status: 200 })) as typeof fetch;
+    }), { status: 200 });
+  }) as unknown as typeof fetch;
   const ctx = { fetchImpl: mockFetch, fromDate: "2026-11-03", toDate: "2026-11-18", geocode: false, geocodeSleepMs: 0, maxGeocode: 0, limits: {}, env: {}, venues: {} as never, geocoder: { async geocode() { return null; } }, now: () => "2026-11-03T00:00:00Z" };
   const res = await tm.run(ctx as never);
-  assert.equal(res.events.length, 2);
+  assert.ok(calledUrl.includes("classificationName=music%2Carts%26theatre%2Cfamily"), "classification encodata: " + calledUrl);
+  assert.equal(res.events.length, 3);
   const titles = res.events.map((e) => e.title).sort();
-  assert.deepEqual(titles, ["Club 30eur Milano", "Coez Arcimboldi"]);
+  assert.deepEqual(titles, ["Club 30eur Milano", "Coez Arcimboldi", "Spettacolo Bollate 20eur"]);
+  const bollate = res.events.find((e) => e.title.includes("Bollate"))!;
+  assert.equal(bollate.lat, null);
+  assert.equal(bollate.city, "BOLLATE");
 });
 
 test("env helpers", () => {
@@ -430,6 +438,7 @@ test("radiopunk: parsa le righe del listing 'DD/MM/YYYY + info TITOLO ðŸ“ CITTÃ
   assert.equal(res.events[0].title, "Midweek Attack");
   assert.equal(res.events[0].venue, "Cascina Torchiera");
   assert.equal(res.events[0].city, "MILANO");
+  assert.equal((res.events[0] as any).categoryHint, "concerto");
 });
 
 test("cheventi: i concerti candlelight vengono esclusi", async () => {

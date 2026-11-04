@@ -172,7 +172,7 @@ export async function runSync(deps: SyncDeps, opts: SyncOptions = {}): Promise<S
           await new Promise((r) => setTimeout(r, ctx.geocodeSleepMs));
         }
       }
-      const category = categorize(`${d.title} ${d.description ?? ""}`);
+      const category = d.categoryHint ?? categorize(`${d.title} ${d.description ?? ""}`);
       if ((category === "concerto" || category === "teatro") && d.priceMax != null && d.priceMax < 5) {
         d.priceMin = null;
         d.priceMax = null;

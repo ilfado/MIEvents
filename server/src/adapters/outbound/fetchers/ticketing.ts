@@ -1,6 +1,6 @@
 import type { EventSource, SourceContext } from "../../../application/ports.js";
 import type { SourceResult, EventDraft } from "../../../core/types.js";
-import { distKm, inMilanoProvince, MILANO_CENTER } from "../../../core/text.js";
+import { distKm, inMilanoProvince, MI_CITY_RE, MILANO_CENTER } from "../../../core/text.js";
 import { isBigEvent } from "../../../core/big-events.js";
 import { getJson } from "./http.js";
 
@@ -79,7 +79,7 @@ export function ticketingSources(env: NodeJS.ProcessEnv): EventSource[] {
         const end = fmt(new Date(`${ctx.toDate}T23:59:59Z`));
         const url =
           `https://app.ticketmaster.com/discovery/v2/events.json?apikey=${encodeURIComponent(apiKey)}` +
-          `&latLong=45.4642,9.19&radius=100&unit=km&classificationName=music,arts&family` +
+          `&latLong=45.4642,9.19&radius=100&unit=km&classificationName=${encodeURIComponent("music,arts&theatre,family")}` +
           `&startDateTime=${encodeURIComponent(from)}&endDateTime=${encodeURIComponent(end)}&size=${ctx.limits["ticketmasterSize"] ?? 100}&sort=date,asc`;
         const json = (await getJson(ctx.fetchImpl, url)) as { _embedded?: { events?: Array<Record<string, any>> } };
         const events: EventDraft[] = [];
@@ -90,8 +90,9 @@ export function ticketingSources(env: NodeJS.ProcessEnv): EventSource[] {
           const venue = (e._embedded?.venues?.[0] ?? {}) as Record<string, any>;
           const lat = venue.location?.latitude ? Number(venue.location.latitude) : null;
           const lon = venue.location?.longitude ? Number(venue.location.longitude) : null;
-          const tmOk = lat !== null && lon !== null && Number.isFinite(lat) && Number.isFinite(lon) && distKm(lat, lon, MILANO_CENTER.lat, MILANO_CENTER.lon) <= 100;
-          if (!tmOk) continue;
+          const geoOk = lat !== null && lon !== null && Number.isFinite(lat) && Number.isFinite(lon) && distKm(lat, lon, MILANO_CENTER.lat, MILANO_CENTER.lon) <= 100;
+          const textOk = MI_CITY_RE.test(`${venue.name ?? ""} ${venue.city?.name ?? ""} ${venue.address?.line1 ?? ""}`);
+          if (!geoOk && !textOk) continue;
           if (isBigEvent(venue.name ?? null, venue.address?.line1 ?? null, name)) continue;
           const pr = Array.isArray(e.priceRanges) ? e.priceRanges[0] : null;
           const pmin = pr?.min != null ? Number(pr.min) : null;

@@ -15,6 +15,7 @@ export interface EventDraft {
   lat: number | null;
   lon: number | null;
   organizer: string | null;
+  categoryHint?: import("@mievents/shared").EventCategory;
   priceMin?: number | null;
   priceMax?: number | null;
 }
