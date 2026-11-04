@@ -6,6 +6,7 @@ import { isBigEvent } from "../../core/big-events.js";
 import { parsePriceText } from "../../core/price.js";
 import { pinForVenue } from "../../core/venue-pins.js";
 import { syncWindow } from "../../core/types.js";
+import { distKm, MI_CITY_RE, MILANO_CENTER } from "../../core/text.js";
 import { runVenueSync } from "./venue-sync.js";
 import { lombardiaSagreSource } from "../../adapters/outbound/fetchers/lombardia.js";
 import { lombardiaAreaPubblicaSource } from "../../adapters/outbound/fetchers/lombardia-area-pubblica.js";
@@ -178,6 +179,15 @@ export async function runSync(deps: SyncDeps, opts: SyncOptions = {}): Promise<S
           }
           await new Promise((r) => setTimeout(r, ctx.geocodeSleepMs));
         }
+      }
+      if (lat != null && lon != null) {
+        if (distKm(lat, lon, MILANO_CENTER.lat, MILANO_CENTER.lon) > 100) {
+          skipped++;
+          continue;
+        }
+      } else if (!MI_CITY_RE.test(`${d.venue ?? ""} ${d.address ?? ""} ${d.city}`)) {
+        skipped++;
+        continue;
       }
       const category = d.categoryHint ?? categorize(`${d.title} ${d.description ?? ""}`);
       if ((category === "concerto" || category === "teatro") && d.priceMax != null && d.priceMax < 5) {

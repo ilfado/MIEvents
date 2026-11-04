@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { DatabaseSync } from "node:sqlite";
+import { DatabaseSync, type StatementSync } from "node:sqlite";
 import fs from "node:fs";
 import path from "node:path";
 import { EVENT_CATEGORIES, PRICE_BANDS, type EventCategory, type EventFilters, type EventsResponse, type MiEvent, type PriceBand } from "@mievents/shared";
@@ -214,6 +214,7 @@ const PRICE_BAND_INCLUSIVE: Record<PriceBand, PriceBand[]> = {
 };
 
 export function createEventRepository(db: DatabaseSync): EventRepository {
+  const stmtCache = new Map<string, { count: StatementSync; rows: StatementSync }>();
   const upsertDraft = db.prepare(`
     INSERT INTO events (
       id, title, description, category, type, start, end, time_start, time_end,
@@ -301,12 +302,19 @@ export function createEventRepository(db: DatabaseSync): EventRepository {
         params.push(b[0], b[2], b[1], b[3]);
       }
       const where = clauses.length > 0 ? `WHERE ${clauses.join(" AND ")}` : "";
-      const total = (db.prepare(`SELECT COUNT(*) AS c FROM events ${where}`).get(...params) as { c: number }).c;
+      let cached = stmtCache.get(where);
+      if (!cached) {
+        if (stmtCache.size > 50) stmtCache.clear();
+        cached = {
+          count: db.prepare(`SELECT COUNT(*) AS c FROM events ${where}`),
+          rows: db.prepare(`SELECT events.* FROM events ${where} ORDER BY date(start) ASC, time_start ASC LIMIT ? OFFSET ?`),
+        };
+        stmtCache.set(where, cached);
+      }
+      const total = (cached.count.get(...params) as { c: number }).c;
       const limit = Math.min(Math.max(f.limit ?? 100, 1), 500);
       const offset = Math.max(f.offset ?? 0, 0);
-      const rows = db
-        .prepare(`SELECT events.* FROM events ${where} ORDER BY date(start) ASC, time_start ASC LIMIT ? OFFSET ?`)
-        .all(...params, limit, offset) as unknown as EventRow[];
+      const rows = cached.rows.all(...params, limit, offset) as unknown as EventRow[];
       return { total, events: rows.map(rowToEvent) };
     },
     listCities() {

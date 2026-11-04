@@ -434,3 +434,17 @@ test("sync: eventi candlelight skippati da tutte le fonti", async () => {
   assert.equal(res.inserted, 1);
   assert.equal(events.listEvents({ all: true }).total, 1);
 });
+
+test("filtro globale distanza: <=100km da Milano se geo, altrimenti testo MI; fuori -> skip", async () => {
+  const db = openDb(":memory:");
+  const events = createEventRepository(db);
+  const venues = createVenueRepository(db);
+  const geo = { async geocode() { return null; } };
+  const far = { ...DRAFT, title: "EVENTO A SINGAPORE", url: "https://example.org/sg", lat: 1.35, lon: 103.8, venue: "Expo", address: "Singapore", city: "SINGAPORE" };
+  const noGeoMi = { ...DRAFT, title: "EVENTO SENZA GEO MA MI", url: "https://example.org/nogeo", lat: null, lon: null, venue: "Circolo Milano", address: "Via Milano 1", city: "MILANO" };
+  const noGeoRoma = { ...DRAFT, title: "EVENTO ROMA SENZA GEO", url: "https://example.org/rm", lat: null, lon: null, venue: "Teatro Roma", address: "Roma", city: "ROMA" };
+  const res = await runSync({ events, venues, geocoder: geo, extraSources: [testSource([far, noGeoMi, noGeoRoma])] }, { env: {}, syncVenues: false, geocode: false });
+  assert.equal(res.skipped, 2);
+  assert.equal(res.inserted, 1);
+  assert.equal(events.listEvents({ all: true }).events[0].title, "EVENTO SENZA GEO MA MI");
+});

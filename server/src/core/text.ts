@@ -48,26 +48,25 @@ export function distKm(lat1: number, lon1: number, lat2: number, lon2: number): 
 }
 
 const MONTH_RE = "(gennaio|febbraio|marzo|aprile|maggio|giugno|luglio|agosto|settembre|ottobre|novembre|dicembre)";
+const RE_ISO = /(\d{4})-(\d{2})-(\d{2})/;
+const RE_DMY = /(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/;
+const RE_RANGE_CROSS = new RegExp(`dal\\s*(?:l['\u2019])?\\s*(\\d{1,2})\\s*(?:al|a)\\s*(\\d{1,2})\\s+(?:di\\s+)?${MONTH_RE}\\s+(\\d{4})`, "i");
+const RE_RANGE_SAME = new RegExp(`dal\\s*(\\d{1,2})\\s*al\\s*(\\d{1,2})\\s*${MONTH_RE}\\s+(\\d{4})`, "i");
+const RE_FROM_SINGLE = new RegExp(`dal\\s*(?:l['\u2019])?\\s*(\\d{1,2})\\s+${MONTH_RE}\\s+(\\d{4})`, "i");
+const RE_DAY_MONTH = new RegExp(`(\\d{1,2})\\s+${MONTH_RE}\\s+(\\d{4})`, "i");
 
 export function extractDateFromText(text: string): string | null {
-  let m = text.match(/(\d{4})-(\d{2})-(\d{2})/);
+  let m = text.match(RE_ISO);
   if (m) return `${m[1]}-${m[2]}-${m[3]}`;
-  m = text.match(/(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);
+  m = text.match(RE_DMY);
   if (m) return `${m[3]}-${m[2].padStart(2, "0")}-${m[1].padStart(2, "0")}`;
-  const monthAlt = MONTH_RE;
-  const range = new RegExp(
-    `dal\\s*(?:l['’])?\\s*(\\d{1,2})\\s*(?:al|a)\\s*(\\d{1,2})\\s+(?:di\\s+)?${monthAlt}\\s+(\\d{4})`,
-    "i",
-  );
-  m = text.match(range);
+  m = text.match(RE_RANGE_CROSS);
   if (m) return `${m[4]}-${MONTHS[m[3].toLowerCase()]}-${m[1].padStart(2, "0")}`;
-  const rangeSameMonth = new RegExp(`dal\\s*(\\d{1,2})\\s*al\\s*(\\d{1,2})\\s*${monthAlt}\\s+(\\d{4})`, "i");
-  m = text.match(rangeSameMonth);
+  m = text.match(RE_RANGE_SAME);
   if (m) return `${m[3]}-${MONTHS[m[2].toLowerCase()]}-${m[1].padStart(2, "0")}`;
-  const fromSingle = new RegExp(`dal\\s*(?:l['’])?\\s*(\\d{1,2})\\s+${monthAlt}\\s+(\\d{4})`, "i");
-  m = text.match(fromSingle);
+  m = text.match(RE_FROM_SINGLE);
   if (m) return `${m[3]}-${MONTHS[m[2].toLowerCase()]}-${m[1].padStart(2, "0")}`;
-  m = text.match(new RegExp(`(\\d{1,2})\\s+${monthAlt}\\s+(\\d{4})`, "i"));
+  m = text.match(RE_DAY_MONTH);
   if (m) return `${m[3]}-${MONTHS[m[2].toLowerCase()]}-${m[1].padStart(2, "0")}`;
   return null;
 }
