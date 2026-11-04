@@ -99,7 +99,9 @@ Formato normalizzato → tabella `events` + FTS5. Dettaglio campo-per-campo in `
 | Regione Lombardia — sagre/fiere provincia MI (2 risorse Socrata) | **attivo** | JSON SoQL (CC0), geo da `location`/`geo_x/y` |
 | MilanoToday `/eventi/` + RSS canale eventi | **attivo** | listing HTML `dal/{from}/al/{to}/` → dettaglio con JSON-LD Event |
 | Eventi@Milano, BASE Milano, Magazzini Generali (Tribe/TEC) | **attivo** | API `wp-json/tribe/events/v1` (Santeria via WP `eventi` + ACF) |
-| Cheventi.it | **attivo** | listing HTML con JSON-LD |
+| Cheventi.it | **attivo** | listing HTML con JSON-LD (esclusi i concerti `candlelight`) |
+| Metalitalia (agenda metal) | **attivo** | listing `category/agenda` → dettaglio `/evento/` con JSON-LD `Event` |
+| Radio Punk (date punk DIY) | **attivo** | listing `?event=ID` → riga `DD/MM/YYYY TITOLO 📍 CITTÀ @VENUE` |
 | Wikidata (QLever) | **attivo** | SPARQL, filtro bbox MI + finestra server-side |
 | ViviMilano / MilanoEvents.it / Eventi@Milano RSS | **attivo** | RSS con euristiche evento + venue-hint + area MI |
 | Ticketmaster / Eventbrite / Bandsintown | off di default (`TICKETING_SOURCES=1`) | API discovery; richiedono coordinate in provincia MI |

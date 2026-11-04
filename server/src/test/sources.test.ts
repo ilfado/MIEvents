@@ -1,6 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { cheventiSource } from "../adapters/outbound/fetchers/cheventi.js";
+import { metalitaliaSource } from "../adapters/outbound/fetchers/metalitalia.js";
+import { radiopunkSource } from "../adapters/outbound/fetchers/radiopunk.js";
 import { tribeBaseSource } from "../adapters/outbound/fetchers/tribe.js";
 import { lombardiaAreaPubblicaSource } from "../adapters/outbound/fetchers/lombardia-area-pubblica.js";
 import { lombardiaSagreSource } from "../adapters/outbound/fetchers/lombardia.js";
@@ -385,4 +387,56 @@ test("lombardia-sagre: stessa sagra con doppia location/comune (Cornaredo->Pader
   const res = await lombardiaSagreSource.run(makeCtx({ fetchImpl: mockFetch, fromDate: "2026-11-01", toDate: "2026-11-30" }));
   assert.equal(res.events.length, 2);
   assert.equal(res.events[0]._id, res.events[1]._id);
+});
+
+test("metalitalia: listing agenda -> dettaglio JSON-LD Event, filtro provincia MI", async () => {
+  const listing = '<html><a href="https://metalitalia.com/evento/test-metal-milano/">x</a><a href="https://metalitalia.com/evento/test-roma/">y</a></html>';
+  const det = (city: string, name: string) =>
+    '<script type="application/ld+json">' +
+    JSON.stringify({
+      "@type": "Event",
+      name,
+      startDate: "2026-11-10T20:00:00+01:00",
+      url: "https://metalitalia.com/evento/x/",
+      location: { "@type": "Place", name: "Club", address: { addressLocality: city } },
+    }) +
+    "</script>";
+  const mockFetch = (async (url: any) => {
+    const u = String(url);
+    if (u.includes("test-metal-milano")) return new Response(det("Milano", "Test Metal Milano"), { status: 200 });
+    if (u.includes("test-roma")) return new Response(det("Roma", "Test Roma"), { status: 200 });
+    return new Response(listing, { status: 200 });
+  }) as unknown as typeof fetch;
+  const res = await metalitaliaSource.run(makeCtx({ fetchImpl: mockFetch, fromDate: "2026-11-01", toDate: "2026-11-30", limits: { metalitaliaPages: 1, metalitaliaDetails: 10 } }));
+  assert.equal(res.events.length, 1);
+  assert.equal(res.events[0].title, "Test Metal Milano");
+  assert.equal(res.events[0].city, "MILANO");
+});
+
+test("radiopunk: ?event=ID -> riga 'DD/MM/YYYY TITOLO 📍 CITTÀ @VENUE', solo provincia MI", async () => {
+  const listing = `<a href="https://radiopunk.it/evento/?event=101">a</a><a href="https://radiopunk.it/evento/?event=102">b</a>`;
+  const det = (row: string) => `<html><body><div class="evento">${row}</div></body></html>`;
+  const mockFetch = (async (url: any) => {
+    const u = String(url);
+    if (u.includes("event=101")) return new Response(det("05/11/2026 TEST PUNK BAND 📍 Milano @Circolo Dummy"), { status: 200 });
+    if (u.includes("event=102")) return new Response(det("06/11/2026 ALTRA BAND 📍 Padova @Grindhouse Club"), { status: 200 });
+    return new Response(listing, { status: 200 });
+  }) as unknown as typeof fetch;
+  const res = await radiopunkSource.run(makeCtx({ fetchImpl: mockFetch, fromDate: "2026-11-01", toDate: "2026-11-30", limits: { radiopunkDetails: 10 } }));
+  assert.equal(res.events.length, 1);
+  assert.equal(res.events[0].start, "2026-11-05");
+  assert.equal(res.events[0].title, "TEST PUNK BAND");
+  assert.equal(res.events[0].venue, "Circolo Dummy");
+  assert.equal(res.events[0].city, "MILANO");
+});
+
+test("cheventi: i concerti candlelight vengono esclusi", async () => {
+  const listing = `<html><head><script type="application/ld+json">{"@type":"ItemList","itemListElement":[
+  {"@type":"ListItem","item":{"@type":"Event","name":"Candlelight: Le quattro stagioni","url":"https://www.cheventi.it/eventi/x/","startDate":"2026-11-12T20:00:00+01:00","location":{"@type":"Place","name":"X","address":{"addressLocality":"Milano"}}}},
+  {"@type":"ListItem","item":{"@type":"Event","name":"Concerto punk DIY","url":"https://www.cheventi.it/eventi/y/","startDate":"2026-11-12T21:00:00+01:00","location":{"@type":"Place","name":"Y","address":{"addressLocality":"Milano"}}}}
+  ]}</script></head></html>`;
+  const mockFetch = (async () => new Response(listing, { status: 200 })) as unknown as typeof fetch;
+  const res = await cheventiSource.run(makeCtx({ fetchImpl: mockFetch, fromDate: "2026-11-01", toDate: "2026-11-30", limits: { cheventiPages: 1 } }));
+  assert.equal(res.events.length, 1);
+  assert.equal(res.events[0].title, "Concerto punk DIY");
 });
