@@ -1,21 +1,24 @@
 import type { EventSource } from "../../../application/ports.js";
 import type { SourceResult } from "../../../core/types.js";
 import { extractJsonLdEvents, ldToDraft } from "../../../core/jsonld.js";
-import { extractLinks, inMilanoProvince, MI_CITY_RE } from "../../../core/text.js";
+import { distKm, extractLinks, inMilanoProvince, MI_CITY_RE, MILANO_CENTER } from "../../../core/text.js";
 import { getText, sleep } from "./http.js";
 
 const LISTING = "https://metalitalia.com/category/agenda/";
 const EVENT_PATH = /\/evento\/[^/?#]+/i;
 
 function inArea(d: { lat: number | null; lon: number | null; venue: string | null; address: string | null; city: string }): boolean {
-  if (d.lat != null && d.lon != null) return inMilanoProvince(d.lat, d.lon);
+  if (d.lat != null && d.lon != null) {
+    if (!inMilanoProvince(d.lat, d.lon)) return false;
+    return distKm(d.lat, d.lon, MILANO_CENTER.lat, MILANO_CENTER.lon) <= 50;
+  }
   return MI_CITY_RE.test(`${d.venue ?? ""} ${d.address ?? ""} ${d.city}`);
 }
 
 export const metalitaliaSource: EventSource = {
   id: "metalitalia",
   async run(ctx): Promise<SourceResult> {
-    const maxPages = ctx.limits["metalitaliaPages"] ?? 2;
+    const maxPages = ctx.limits["metalitaliaPages"] ?? 5;
     const maxDetails = ctx.limits["metalitaliaDetails"] ?? 40;
     const delay = 700;
     const seen = new Set<string>();

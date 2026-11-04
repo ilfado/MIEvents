@@ -119,7 +119,7 @@ export async function runSync(deps: SyncDeps, opts: SyncOptions = {}): Promise<S
 
   const persist = async (drafts: EventDraft[]) => {
     for (const d of drafts) {
-      if (isBigEvent(d.venue, d.address, d.title)) {
+      if (isBigEvent(d.venue, d.address, d.title) || /candlelight/i.test(d.title)) {
         skipped++;
         continue;
       }

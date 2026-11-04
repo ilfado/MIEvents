@@ -396,7 +396,7 @@ test("metalitalia: listing agenda -> dettaglio JSON-LD Event, filtro provincia M
     JSON.stringify({
       "@type": "Event",
       name,
-      startDate: "2026-11-10T20:00:00+01:00",
+      startDate: "10/11/2026",
       url: "https://metalitalia.com/evento/x/",
       location: { "@type": "Place", name: "Club", address: { addressLocality: city } },
     }) +
@@ -413,20 +413,17 @@ test("metalitalia: listing agenda -> dettaglio JSON-LD Event, filtro provincia M
   assert.equal(res.events[0].city, "MILANO");
 });
 
-test("radiopunk: ?event=ID -> riga 'DD/MM/YYYY TITOLO 📍 CITTÀ @VENUE', solo provincia MI", async () => {
-  const listing = `<a href="https://radiopunk.it/evento/?event=101">a</a><a href="https://radiopunk.it/evento/?event=102">b</a>`;
-  const det = (row: string) => `<html><body><div class="evento">${row}</div></body></html>`;
-  const mockFetch = (async (url: any) => {
-    const u = String(url);
-    if (u.includes("event=101")) return new Response(det("05/11/2026 TEST PUNK BAND 📍 Milano @Circolo Dummy"), { status: 200 });
-    if (u.includes("event=102")) return new Response(det("06/11/2026 ALTRA BAND 📍 Padova @Grindhouse Club"), { status: 200 });
-    return new Response(listing, { status: 200 });
-  }) as unknown as typeof fetch;
-  const res = await radiopunkSource.run(makeCtx({ fetchImpl: mockFetch, fromDate: "2026-11-01", toDate: "2026-11-30", limits: { radiopunkDetails: 10 } }));
+test("radiopunk: parsa le righe del listing 'DD/MM/YYYY + info TITOLO 📍 CITTÀ @VENUE', solo MI", async () => {
+  const listing = `<html><body>
+  <div>04/11/2026 + info Midweek Attack 📍 Milano @Cascina Torchiera</div>
+  <div>06/11/2026 + info ALTRA BAND 📍 Padova @Grindhouse Club</div>
+  </body></html>`;
+  const mockFetch = (async () => new Response(listing, { status: 200 })) as unknown as typeof fetch;
+  const res = await radiopunkSource.run(makeCtx({ fetchImpl: mockFetch, fromDate: "2026-11-01", toDate: "2026-11-30", limits: { radiopunkDetails: 60 } }));
   assert.equal(res.events.length, 1);
-  assert.equal(res.events[0].start, "2026-11-05");
-  assert.equal(res.events[0].title, "TEST PUNK BAND");
-  assert.equal(res.events[0].venue, "Circolo Dummy");
+  assert.equal(res.events[0].start, "2026-11-04");
+  assert.equal(res.events[0].title, "Midweek Attack");
+  assert.equal(res.events[0].venue, "Cascina Torchiera");
   assert.equal(res.events[0].city, "MILANO");
 });
 

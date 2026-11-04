@@ -424,3 +424,14 @@ test("prezzo 1€ su concerto/teatro -> azzerato (sconosciuto), non fascia fino1
   assert.equal(byTitle["CONCERTO VERO"].priceBand, "fino20");
   assert.equal(events.listEvents({ all: true, priceBand: "fino10" }).total, 0);
 });
+
+test("sync: eventi candlelight skippati da tutte le fonti", async () => {
+  const db = openDb(":memory:");
+  const events = createEventRepository(db);
+  const venues = createVenueRepository(db);
+  const cl = { ...DRAFT, title: "Candlelight: Vivaldi a lume di candela", url: "https://example.org/cl" };
+  const res = await runSync({ events, venues, geocoder: mockGeocoder(), extraSources: [testSource([cl, DRAFT])] }, { env: {}, syncVenues: false, geocode: false });
+  assert.equal(res.skipped, 1);
+  assert.equal(res.inserted, 1);
+  assert.equal(events.listEvents({ all: true }).total, 1);
+});
