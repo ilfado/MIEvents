@@ -1,6 +1,7 @@
 import type { EventSource, SourceContext } from "../../../application/ports.js";
 import type { SourceResult, EventDraft } from "../../../core/types.js";
-import { inMilanoProvince } from "../../../core/text.js";
+import { distKm, inMilanoProvince, MILANO_CENTER } from "../../../core/text.js";
+import { isBigEvent } from "../../../core/big-events.js";
 import { getJson } from "./http.js";
 
 export function apiKeysFromEnv(env: NodeJS.ProcessEnv): { ticketmaster?: string; eventbriteUser?: string; bandsintown?: string } {
@@ -89,11 +90,13 @@ export function ticketingSources(env: NodeJS.ProcessEnv): EventSource[] {
           const venue = (e._embedded?.venues?.[0] ?? {}) as Record<string, any>;
           const lat = venue.location?.latitude ? Number(venue.location.latitude) : null;
           const lon = venue.location?.longitude ? Number(venue.location.longitude) : null;
-          const tmOk = lat !== null && lon !== null && Number.isFinite(lat) && Number.isFinite(lon) && inMilanoProvince(lat, lon);
+          const tmOk = lat !== null && lon !== null && Number.isFinite(lat) && Number.isFinite(lon) && distKm(lat, lon, MILANO_CENTER.lat, MILANO_CENTER.lon) <= 100;
           if (!tmOk) continue;
+          if (isBigEvent(venue.name ?? null, venue.address?.line1 ?? null, name)) continue;
           const pr = Array.isArray(e.priceRanges) ? e.priceRanges[0] : null;
           const pmin = pr?.min != null ? Number(pr.min) : null;
           const pmax = pr?.max != null ? Number(pr.max) : null;
+          if (pmax !== null && Number.isFinite(pmax) && pmax >= 35) continue;
           events.push({
             sourceId: "ticketmaster",
             sourceName: "Ticketmaster",
