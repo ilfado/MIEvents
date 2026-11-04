@@ -7,12 +7,17 @@ import { getText, sleep } from "./http.js";
 const LISTING = "https://metalitalia.com/category/agenda/";
 const EVENT_PATH = /\/evento\/[^/?#]+/i;
 
-function inArea(d: { lat: number | null; lon: number | null; venue: string | null; address: string | null; city: string }): boolean {
+const OTHER_CITY_RE = /\b(roma|torino|padova|venezia|firenze|bologna|napoli|brescia|verona|genova|trieste|bolzano|trento|udine|bergamo|como|varese|monza no)\b/i;
+
+function inArea(d: { lat: number | null; lon: number | null; addrText: string }): boolean {
   if (d.lat != null && d.lon != null) {
     if (!inMilanoProvince(d.lat, d.lon)) return false;
     return distKm(d.lat, d.lon, MILANO_CENTER.lat, MILANO_CENTER.lon) <= 50;
   }
-  return MI_CITY_RE.test(`${d.venue ?? ""} ${d.address ?? ""} ${d.city}`);
+  const t = d.addrText.trim();
+  if (!t) return false;
+  if (OTHER_CITY_RE.test(t)) return false;
+  return MI_CITY_RE.test(t);
 }
 
 export const metalitaliaSource: EventSource = {
@@ -45,7 +50,14 @@ export const metalitaliaSource: EventSource = {
             if (!draft) continue;
             if (!draft.url) draft.url = link;
             if (draft.start < ctx.fromDate || draft.start > ctx.toDate) continue;
-            if (!inArea(draft)) continue;
+            const loc = typeof ev.location === "object" && ev.location !== null ? ev.location : null;
+            const addrObj = loc && typeof loc.address === "object" && loc.address !== null ? loc.address : null;
+            const addrStr = [
+              loc?.name ?? "",
+              addrObj ? [addrObj.streetAddress, addrObj.addressLocality, addrObj.addressRegion, addrObj.postalCode].filter(Boolean).join(", ") : typeof loc?.address === "string" ? loc.address : "",
+            ].join(" ");
+            if (!inArea({ lat: draft.lat, lon: draft.lon, addrText: addrStr })) continue;
+            if (addrObj?.addressLocality) draft.city = addrObj.addressLocality.toUpperCase();
             events.push(draft);
             count++;
           }

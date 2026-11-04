@@ -82,6 +82,11 @@ const PINS: [string, VenuePinPoint][] = [
   ["cea", { lat: 45.4820, lon: 9.2280, address: "Via Tadino 3, 20131 Milano", city: "MILANO" }],
   ["casa cardinale ildefonso schuster", { lat: 45.4680, lon: 9.1840, address: "Via Sant'Antonio 5, 20122 Milano", city: "MILANO" }],
   ["casa delle zucche", { lat: 45.0660, lon: 7.3890, address: "Via Vittorio Emanuele 69, 10020 Andezeno (TO)", city: "ANDEZENO" }],
+  ["legend club", { lat: 45.5162, lon: 9.1793, address: "Viale Enrico Fermi 98, 20161 Milano", city: "MILANO" }],
+  ["legend club milano", { lat: 45.5162, lon: 9.1793, address: "Viale Enrico Fermi 98, 20161 Milano", city: "MILANO" }],
+  ["land club", { lat: 45.5867, lon: 8.8982, address: "Via Maestri del Lavoro 27, 20025 Legnano (MI)", city: "LEGNANO" }],
+  ["land club legnano", { lat: 45.5867, lon: 8.8982, address: "Via Maestri del Lavoro 27, 20025 Legnano (MI)", city: "LEGNANO" }],
+  ["land legnano", { lat: 45.5867, lon: 8.8982, address: "Via Maestri del Lavoro 27, 20025 Legnano (MI)", city: "LEGNANO" }],
 ];
 
 const PIN_INDEX = new Map(PINS.map(([key, pin]) => [norm(key), pin]));

@@ -390,7 +390,7 @@ test("lombardia-sagre: stessa sagra con doppia location/comune (Cornaredo->Pader
 });
 
 test("metalitalia: listing agenda -> dettaglio JSON-LD Event, filtro provincia MI", async () => {
-  const listing = '<html><a href="https://metalitalia.com/evento/test-metal-milano/">x</a><a href="https://metalitalia.com/evento/test-roma/">y</a></html>';
+  const listing = '<html><a href="https://metalitalia.com/evento/test-metal-milano/">x</a><a href="https://metalitalia.com/evento/test-roma/">y</a><a href="https://metalitalia.com/evento/test-vuoto/">z</a></html>';
   const det = (city: string, name: string) =>
     '<script type="application/ld+json">' +
     JSON.stringify({
@@ -405,6 +405,7 @@ test("metalitalia: listing agenda -> dettaglio JSON-LD Event, filtro provincia M
     const u = String(url);
     if (u.includes("test-metal-milano")) return new Response(det("Milano", "Test Metal Milano"), { status: 200 });
     if (u.includes("test-roma")) return new Response(det("Roma", "Test Roma"), { status: 200 });
+    if (u.includes("test-vuoto")) return new Response(det("", "Test Senza Sede"), { status: 200 });
     return new Response(listing, { status: 200 });
   }) as unknown as typeof fetch;
   const res = await metalitaliaSource.run(makeCtx({ fetchImpl: mockFetch, fromDate: "2026-11-01", toDate: "2026-11-30", limits: { metalitaliaPages: 1, metalitaliaDetails: 10 } }));
