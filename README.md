@@ -1,196 +1,125 @@
 # MIEvents v2.0
 
-> **v2.0.0** (PR #41–#51) — refactoring, hardening, mappa e qualità dati:
-- **Sicurezza**: `POST /api/sync` in background con mutex (409 se in corso) e `SYNC_TOKEN` opzionale (Bearer, timing-safe); validazione `from`/`limit`/`offset` (400, niente injection SoQL/SPARQL e niente 500 su NaN); errori HTTP con URL **redacted** (le API key non finiscono in log/risposte); 500 generico, body 413, JSON 400; header `nosniff`/`Referrer-Policy`, **CSP** su HTML, `Cache-Control: immutable` su `/assets/*`; path traversal bloccato (`path.resolve` + prefisso); `_id` connettori anti-collisione; URL eventi sanificati a `http(s)`; Nominatim non cachea più 429/5xx; migrazioni DB via `user_version` + `busy_timeout`.
-- **Performance**: cache in-memory venue/coords durante la sync (niente N+1), niente doppio fetch col filtro area, **compressione gzip/br on-the-fly**, build target `es2022`, dedup codice, **mappa canvas custom `LightMap` al posto di MapLibre** (tagliato ~1,67 MB raw; app totale ~250 kB raw / ~70 kB br).
-- **Mappa**: tile servite dal **proxy proprio** `GET /tiles/{z}/{x}/{y}.png` (upstream Wikimedia → OSM fallback con UA identificativo, validazione magic PNG, cache 2000 tile, `max-age=86400`); worker MapLibre con URL reale (`setWorkerUrl` + `?url`, fix "Worker failed to load"); MIME `.mjs`; CSP `worker-src 'self' blob:`; SW cache `v9` che esclude `/api/` e `/tiles/`; banner errore mappa + sonda tile in console.
-- **Dati**: fix prezzi (niente "gratis" da omaggi; outlier <5€ scartati se max ≥10€); dedup sagre doppia location (`_id` senza indirizzo).
+App per **cercare, salvare e visualizzare su lista e mappa** gli eventi a Milano e in provincia.
 
-
-> Hardening & performance: `POST /api/sync` ora gira in background con mutex (niente sync sovrapposti) e token opzionale `SYNC_TOKEN`; `from` validato (niente injection SoQL/SPARQL); errori HTTP degli adapter con URL redacted (le API key non finiscono più in log/risposte); `_id` dei connettori usato come id evento (niente più collisioni fra sagre stessa giornata); cache venue/coords in-memory durante la sync (niente N+1); Nominatim non cachea più i 429/5xx; migrazioni DB via `PRAGMA user_version`; header di sicurezza + CSP + cache long su `/assets/*`; marker mappa aggiornati per diff; `limit`/`offset` validati; URL eventi sanificati a `http(s)`.
-
-
-> v1.3.0 — focus **eventi medio-piccoli a basso costo**: fasce di prezzo (Gratis / fino a 10€ / fino a 20€ / Cari) con filtro API, chip e badge; esclusione di stadi/palazzetti/arene grandi; sorgenti ticketing (Ticketmaster/Eventbrite/Bandsintown) **off di default** (`TICKETING_SOURCES=1` per riattivarle); eventiatmilano con lookback 180gg (recupera anche mostre lunghe già in corso) e paginazione tollerante ai 404; MilanoToday con estrazione link più robusta e prezzo dal testo della pagina evento. Sicurezza: **maplibre-gl 4.7.1 → 6.16.0** (GHSA-jrc7-96c5-q579, XSS sanitizer bypass nei popup: il bump era documentato ma non era mai atterrato in `web/package.json`), `npm audit` 0 vulnerabilità.
+PWA leggera (installabile, offline app shell): server Node.js **zero dipendenze runtime**, web React 19 + Vite con **mappa canvas custom** (niente librerie di mappa). Peso totale ~**250 kB raw / ~67 kB br**, tutto eager.
 
 ---
-> v1.2.0 — hardening & data quality: sicurezza (maplibre 6.16.0, audit 0 vulns), geo rigorosa (solo provincia MI con coordinate), Santeria doppia sede, sorgenti 0-eventi fixate (ACF/RSS venue-hint), debug API (DEBUG_SOURCES=1).
-
-## Changelog v1.2.0 (da v1.1.0)
-- Security: maplibre-gl 6.16.0 (GHSA-jrc7-96c5-q579), `npm audit` 0; review XSS/SQL/path/secrets.
-- Geo strict: Ticketmaster/Eventbrite/Bandsintown richiedono coordinate in box MI; venue-pins con match per token (Santeria Toscana 31 + Paladini 8, Unipol Dome fix).
-- Data yield: Santeria da ACF `all_meta`; RSS con venue-hint e pubDate fallback; Wikidata senza filtro data server-side.
-- Debug: `GET /api/debug/source?source=...` con `DEBUG_SOURCES=1`; log `[sync]` per sorgente; retry backoff su 429.
-
----
-> v1.1.0 — focus **data quality**: finestra 15gg allineata fra sync e vista, date range dal testo ("dal X al Y"), dizionario venue-pins prima del geocoder, rate-limit free-tier (sync 12h, geocode 15/sync), fix API Ticketmaster/Eventbrite, mappa MapLibre con limiti Nord Italia.
-
-## Changelog v1.1.0 (rispetto a v1.0.0)
-- Data quality: `dal X al Y mese` riconosciuto nei testi RSS; sorgenti Socrata filtrano anche `data_in <= +15gg` (sync = vista).
-- Geo: dizionario `venue-pins` consultato prima di Nominatim (match nome+indirizzo), coordinate persistite in `venues`.
-- Costi: sync ogni 12h, geocoding max 15/sync @1 req/s, delay sorgenti web, API key solo tier free.
-- API fix: Ticketmaster date `YYYY-MM-DDTHH:mm:ssZ`; Eventbrite search gated (`EVENTBRITE_USER_TOKEN` + `EVENTBRITE_SEARCH=1`).
-- Mappa: MapLibre GL `maxBounds` Nord Italia, zoom 7–17; chunk vendor-map lazy (210 kB gzip).
-
---- lista + mappa MapLibre (limiti Nord Italia), filtri rapidi, salvataggio, multi-fonte (open data + JSON-LD + RSS + API key opzionali).
-
-App per cercare, salvare e visualizzare su **lista e mappa** gli eventi a Milano e in provincia.
 
 ## Obiettivo
 
 Selezionare **eventi low-cost in locali piccoli** nelle **prossime 2 settimane (15 giorni)**:
-- **fasce di prezzo** Gratis / fino a 10€ / fino a 20€ / Cari con filtri API, chip e badge (prezzo da JSON-LD `offers`, campo `cost` TEC, `priceRanges` ticketing o testo "gratis / € 12 / da 5 a 15 euro"; outlier tipo 1€ di prevendita scartati quando il max ≥ 10€; "gratis" conta solo per ingresso/evento gratis, non per omaggi tipo birra/rinfresco);
-- **esclusione automatica di stadi, palazzetti, arene e grandi forum** (San Siro, Unipol/Mediolanum Forum, Arena Civica…) in fase di sync (`big=1`, mostrati solo con `includeBig=1`);
-- **finestra temporale 15 giorni** allineata fra sync e vista (gli eventi passati sono nascosti di default);
-- dedup per titolo+data+comune: la stessa sagra su due location conta una volta.
 
-## Connettori eventi (formato normalizzato → tabella `events` + FTS5)
+- **Fasce di prezzo** Gratis / fino a 10€ / fino a 20€ / Cari, con filtri API, chip e badge. Prezzo da JSON-LD `offers`, campo `cost` di The Events Calendar, `priceRanges` ticketing o testo ("gratis / € 12 / da 5 a 15 euro"). Outlier tipo 1€ di prevendita scartati quando il max ≥ 10€; "gratis" conta solo per ingresso/evento gratis, non per omaggi (birra/rinfresco).
+- **Esclusione automatica di stadi, palazzetti, arene e grandi forum** (San Siro, Unipol/Mediolanum Forum, Arena Civica…) in fase di sync (`big=1`, mostrati solo con `?includeBig=1`).
+- **Finestra temporale 15 giorni** allineata fra sync e vista; gli eventi passati sono nascosti di default (`includePast=1`/`all=1` li mostra).
+- **Dedup** per titolo normalizzato + data (la stessa sagra su due location/comuni conta una volta).
+- **Geolocalizzazione** via dizionario `venue-pins` (prima di Nominatim) + DB `venues` + geocoding Nominatim (cache, max 1 req/s, max 15/sync).
 
-Vedi `server/src/connectors.md` per il dettaglio campo-per-campo di ogni sito.
+## Feature
 
-| Fonte | Stato | Formato | Note |
-| --- | --- | --- | --- |
-| Regione Lombardia — sagre/fiere provincia MI | **attivo** | JSON Socrata/SoQL (CC0) | 140+ eventi/anno verificati live |
-| MilanoToday `/eventi/` | **attivo** | listing HTML `dal/{from}/al/{to}/` → dettaglio `/eventi/*.html` con **JSON-LD schema.org Event** | ~31 eventi/mese, venue+indirizzo da `location.address` |
-| Eventbrite | predisposto, **off** | API v3 `events/search` (richiede user token in `EVENTBRITE_USER_TOKEN`) | senza token la API è 404 e le pagine sono anti-bot (405): no scraping |
-| ArciBellezza `/eventi/` | **non raggiungibile** | — | protetto da challenge anti-bot SG Captcha (202) |
-| teatro.it, concerti-italia.it | **non accessibili** | — | 403 (teatro.it) / 202 SG Captcha (concerti-italia.it) su HTML, RSS e sitemap |
-| RSS notizie (MilanoToday/Il Giorno/Arci) | **rimossi** | — | contenevano cronaca, non eventi strutturati |
+- **Lista eventi**: ricerca full-text FTS5 (SQLite, case/accent-insensitive, query sanificate), filtri per testo, comune, categoria, date (validate `YYYY-MM-DD`), fascia prezzo, solo salvati, solo con geo, bounding box mappa.
+- **Mappa `LightMap`** (canvas 2D custom, zero librerie): pan/pinch/wheel/zoom-to-point con Pointer Events, overzoom tile, marker quadrati per categoria + clustering (solo zoom < 11), popup ancorato, filtro per area visibile, clamp automatico al Nord Italia (zoom minimo dinamico). Tile raster servite dal **proxy proprio** `GET /tiles/{z}/{x}/{y}.png` (cache server 2000 tile + cache browser 1 giorno).
+- **Salvataggio** ★ persistente in SQLite (`POST /api/events/:id {saved}`), filtro "solo salvati".
+- **PWA**: manifest + icone, service worker (cache `v9`, app shell, esclude `/api/` e `/tiles/`), installabile.
+- **Performance**: compressione gzip/br on-the-fly (con `Vary: Accept-Encoding` e cache per encoding), `Cache-Control: immutable` su `/assets/*`, `no-store` sulle API.
 
-- **Ricerca full-text** su titolo, descrizione, comune, luogo e organizzatore via **FTS5** di SQLite (case-insensitive e senza distinzione accenti, token unicode61), con query MATCH sanificate.
-- **Indicizzazione** in un database SQLite locale per **luogo (comune + indirizzo), data e tipologia**
-  (categoria dedotta dal testo: sagra, fiera, concerto, teatro, mostra, sport, famiglia, altro).
-- **Geocoding** degli indirizzi via [Nominatim/OpenStreetMap](https://nominatim.openstreetmap.org/) (rispettando il rate limit di 1 req/s) per la vista mappa.
-- **Filtri**: testo libero (FTS5), comune, tipologia, intervallo di date (validato: `YYYY-MM-DD` reali, altrimenti errore 400), bounding box della mappa, solo salvati. La ricerca vuota ripristina l'elenco completo. **Di default gli eventi passati sono nascosti** (`end < oggi`); `includePast=1` li mostra tutti; un filtro data esplicito mostra anche il passato nel range. La sync dei connettori web prende solo eventi futuri.
-- **Filtri rapidi**: chip **Oggi** e **Questo weekend** (ven–dom in arrivo) per la data, chip **Concerti / Mostre / Spettacoli** per la tipologia; filtri per luogo e date personalizzate nascosti dietro il menu **▼ Filtri**. Input date con font 16px: su mobile si apre il date picker nativo senza zoom automatico.
-- **Fasce di prezzo**: ogni evento porta `priceMin`/`priceMax` (da JSON-LD `offers`, campo `cost` di The Events Calendar, `priceRanges` Ticketmaster o testo tipo "gratis / € 12 / da 5 a 15 euro") e una `priceBand`: `gratis`, `fino10`, `fino20`, `cari` (> 20 €, tag "Cari"). Filtro via API (`?priceBand=cari`), chip dedicate e badge sulla card (GRATIS / prezzo / CARI). Prezzo non pubblicato → banda nulla, evento comunque visibile.
-- **Grandi eventi esclusi**: stadi, palazzetti, arene e grandi forum (San Siro, Unipol/Mediolanum Forum di Assago, Arena Civica…) vengono scartati in fase di sync e nascosti di default (`big=1` nel DB; `?includeBig=1` li mostra). Restano club, teatri, circoli, sagre, mostre e happening a basso costo.
-- **Salvataggio**: ogni evento può essere marcato come salvato (★) e filtrato con "Solo salvati"; lo stato persiste nel DB.
-- **Vista mappa** con Leaflet/OpenStreetMap: marker colorati per categoria, popup con dettagli, filtro per area visibile.
-- **Installabile** come PWA (manifest + icone; service worker con cache versionata e strategia network-first su HTML/asset, così gli aggiornamenti arrivano al primo reload), layout responsive mobile-first.
+## Architettura
 
-### Geolocalizzazione via DB `venues` (costruito PRIMA degli eventi)
+Monorepo npm workspaces, architettura esagonale (porte & adapter), flusso unidirezionale:
 
-I locali sono indicizzati in `venues(id, name, address, city, lat, lon, source)`. Ogni sync esegue prima una
-**fase venue** (`runVenueSync`) che popola il DB da fonti autorevoli: **Ticketmaster search venues**
-(`venues.json?latLong=45.4642,9.19&radius=100&unit=km`, coordinate già pronte, zero Nominatim) e la
-**directory circoli ARCI** (`portale.arci.it`, sedi provincia MI). Le venue vengono cross-checkate con quelle
-già registrate (match per nome case-insensitive) e i **pin curati** (`core/venue-pins.ts`) vincono sempre sulle
-coordinate delle API. Poi gli eventi riutilizzano le coordinate del venue (`coordsFor`, match anche per
-contenimento nome): **una sola chiamata Nominatim per venue, non per evento**. API: `GET /api/venues`.
-Disabilitare la fase venue con `SYNC_VENUES=0`.
-
-## Sicurezza (stato attuale)
-
-- **Dipendenze**: `npm audit` 0 vulnerabilità (l'unica lib di mappa, maplibre-gl, è stata rimossa: GHSA-jrc7-96c5-q579 non più rilevante; popup React escapano da soli); server **zero dipendenze runtime** (`node:http` + `node:sqlite` + `fetch`); web: solo React.
-- **Header**: CSP `default-src 'self'` (+ `blob:` solo per il worker), `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer`; API sempre `Cache-Control: no-store`, asset hashati `immutable`.
-- **Endpoint mutanti**: `POST /api/sync` protetto da `SYNC_TOKEN` opzionale (confronto `timingSafeEqual`), mutex anti-sync-concorrenti, input date validato; `POST /api/events/:id` body JSON validato (max 64 kB, 413/400).
-- **Input API**: `q` sanificato per FTS5 (token quotati, max 8, niente injection), `limit`/`offset` interi validati, `from`/`to` date reali (400), `bbox` validato, `category`/`priceBand` allowlist; errori 500 generici (no leak di messaggi interni).
-- **Segreti**: nessun segreto nel repo (chiavi solo in env, mai in codice/log); URL esterni negli errori vengono **redacted** (query string rimossa).
-- **Tile**: servite solo dal proxy `/tiles/` con validazione magic PNG (il client non riceve mai 200 non-immagine) e path `z/x/y` validati (no SSRF); upstream con UA identificativo conforme alle tile policy.
-- **Statici**: path traversal bloccato, SPA fallback sicuro, MIME corretti (incl. `.mjs` per il worker).
-
-## Stack
-
-- **Server**: Node.js ≥ 22 (zero dipendenze runtime: `node:http` + `node:sqlite` + `fetch`), TypeScript.
-- **Web**: React 19 + Vite, **zero librerie di mappa**: `LightMap` canvas 2D custom (pan/zoom/pinch con Pointer Events, overzoom tile, marker quadrati + clustering, popup ancorato, clamp Nord Italia zoom 7–17, toggle strade) — niente MapLibre/worker, CSP tutta `'self'`. Tile raster servite dal proxy `/tiles/` (cache server + browser). Peso totale ~250 kB raw / ~70 kB br, tutto eager (niente chunk lazy). Compressione gzip/br on-the-fly. Build target `es2022`.
-- **Finestra temporale default**: la vista principale mostra solo eventi **da oggi a +15 giorni e con geolocalizzazione**; `?all=1` (o `includePast=1`) mostra tutto lo storico. Le sorgenti sincronizzano solo la finestra 15 giorni. Paginazione `limit`/`offset` con pulsante "carica altri".
-- **Dati**: [dati.lombardia.it](https://www.dati.lombardia.it) (CC0), geocoding Nominatim (ODbL), tile © OpenStreetMap contributors · tile server © Wikimedia Maps (via proxy `/tiles/`).
-
-## Limiti e costi (free tier)
-
-L'app è pensata per restare **gratis**: sync ogni 12h, geocoding Nominatim max 15/sync a 1 req/s (policy OSM), sorgenti web con delay 600–800ms e limiti per pagina; le API key (Ticketmaster/Eventbrite/Bandsintown) usano i tier free. La mappa usa tile raster servite **dal server stesso** (`GET /tiles/{z}/{x}/{y}{@2x}.png`, proxy con cache in-memory (2000 tile) verso Wikimedia Maps `maps.wikimedia.org/osm-intl`, UA identificativo, `Cache-Control: public, max-age=86400`): il browser parla solo con `'self'`, quindi niente blocchi 403/CSP/Referer dei tile server esterni (OSM blocca senza Referer e su IP condivisi; CARTO ora richiede API key). CSP tutta `'self'` + `Referrer-Policy: no-referrer`. Dati © OpenStreetMap contributors, tile © Wikimedia.
-
-## Avvio
-
-```bash
-npm install
-npm run build          # build di shared + server + web
-npm start              # server su http://localhost:3001 (sync iniziale + ogni 6h)
 ```
-
-In sviluppo, con hot reload separati:
-
-```bash
-npm run dev            # server :3001 + vite :5173 (proxy /api -> :3001)
+fetchers (outbound) -> core (normalizzazione pura) -> application/sync -> repositories/sqlite -> HTTP inbound -> web
 ```
-
-La prima sync popola il DB interrogando la fonte pubblica e geocodifica i primi indirizzi. Per forzare una
-sincronizzazione manuale: `POST /api/sync?from=YYYY-MM-DD`.
-
-## API
-
-| Metodo | Endpoint | Descrizione |
-| --- | --- | --- |
-| GET | `/api/events?q=&city=&category=&from=&to=&bbox=&saved=1&priceBand=&includeBig=1` | Lista eventi filtrata (`category=saved` = solo salvati; `priceBand=gratis|fino10|fino20|cari`; di default i grandi eventi sono esclusi, `includeBig=1` li include) |
-| GET | `/api/events/:id` | Dettaglio evento |
-| POST | `/api/events/:id` body `{"saved": bool}` | Salva / desalva |
-| GET | `/api/events/cities` | Elenco comuni presenti |
-| GET | `/api/events/categories` | Categorie disponibili |
-| POST | `/api/sync?from=YYYY-MM-DD` | Avvia la sync in background: `202 {started:true}` (risultato in `GET /api/sync/state` come `last_sync_result`), `409` se una sync è già in corso, `400` se `from` non è una data valida, `401` se `SYNC_TOKEN` è impostato e il token manca/errato |
-| GET | `/api/sync/state` | Ultima sincronizzazione |
-| GET | `/api/health` | Health check |
-
-`bbox` è `sud,ovest,nord,est` in gradi decimali.
-
-## Test
-
-```bash
-npm test               # test unitari e API (node:test, DB in-memory, fetch mockato)
-```
-
-## Variabili d'ambiente (server)
-
-| Variabile | Default | Significato |
-| --- | --- | --- |
-| `PORT` | `3001` | Porta HTTP |
-| `DB_PATH` | `server/data/mievents.db` | Percorso DB SQLite |
-| `WEB_DIST` | `web/dist` | Cartella della build web |
-| `SYNC_ON_START` | `1` | Sync all'avvio (`0` per disabilitare) |
-| `SYNC_GEOCODE` | `1` | Geocoding durante la sync (`0` per disabilitare) |
-| `SYNC_MAX_GEOCODE` | `15` | Massimo indirizzi geocodificati per sync (Nominatim 1 req/s → 15/sync = ~0 costo) |
-| `SYNC_VENUES` | `1` | Fase di sync dei venue (Ticketmaster venues 100 km + circoli ARCI) prima degli eventi (`0` per disabilitare) |
-| `SYNC_INTERVAL_MS` | `43200000` | Intervallo sync periodica (12h — per stare nei limiti gratuiti) |
-| `TICKETMASTER_API_KEY` | — | API key gratuita Ticketmaster Discovery (opzionale) |
-| `EVENTBRITE_USER_TOKEN` | — | **User OAuth token** Eventbrite (flusso authorization-code + consenso, scope `public`) — diverso dalla api/private key |
-| `EVENTBRITE_SEARCH` | `0` | `1` solo se hai user token valido: abilita il connettore search (di default spento) |
-| `BANDSINTWN_APP_ID` | — | API key Bandsintown (da artist.bandsintown.com → Settings → Get API Key). L'API è **artist-only**: il connettore interroga `/artists/{nome}/events` |
-| `BANDSINTWN_ARTISTS` | lista default di ~50 artisti italiani | Elenco artisti separati da virgola per Bandsintown (max 25/sync); gli eventi vengono filtrati per provincia di Milano via coordinate |
-| `SYNC_TOKEN` | — | Se impostato, `POST /api/sync` richiede header `Authorization: Bearer <token>` (confronto timing-safe) |
-| `TICKETING_SOURCES` | `0` | `1` riattiva le sorgenti ticketing (Ticketmaster/Eventbrite/Bandsintown, servono anche le rispettive chiavi): di default **off** perché producono quasi solo grandi concerti in stadi/palazzetti |
-
-Le API key si impostano **solo come variabili d'ambiente nel deploy** (mai in chat o nel codice): su Render → Settings → Environment → Add Environment Variable. Senza chiavi i connettori restano spenti e gli altri continuano a funzionare.
-
-## Struttura (architettura esagonale / ports & adapters)
 
 ```
 server/src/
-  core/                 dominio puro, zero dipendenze I/O: types, text utils, jsonld, rss, categorize
-  application/          ports.ts (EventRepository, VenueRepository, Geocoder, EventSource, SyncService)
-                        services/sync.ts (orchestrazione sorgenti → persistenza → geocoding)
+  core/               dominio puro: types, text, jsonld, rss, categorize, price, big-events, venue-pins
+  application/        ports.ts + services/sync.ts (orchestrazione sorgenti -> DB -> geocoding) + venue-sync.ts
   adapters/
-    inbound/http/       server.ts (API REST + static SPA), main.ts (bootstrap, config, scheduler)
-    outbound/
-      fetchers/         sorgenti eventi: lombardia (Socrata), milanotoday, cheventi, wikidata (QLever),
-                        wp-venues (Santeria), news-rss, ticketing (Ticketmaster/Eventbrite/Bandsintown)
-      repositories/     sqlite.ts (events + FTS5 + venues + sync_state)
-      geo/              nominatim.ts (geocoding con cache in-memory, 1 req/s)
-  config/               variabili d'ambiente
-shared/   tipi TypeScript condivisi (MiEvent, filtri, formato riga Socrata)
-web/      React + Vite + Leaflet (lista, mappa lazy, filtri, salvataggio, PWA)
+    inbound/http/     server.ts (API REST + static SPA + proxy /tiles/ + compressione)
+    outbound/         fetchers/ (sorgenti), repositories/sqlite.ts (events+FTS5+venues+sync_state), geo/nominatim.ts
+  config/             env
+shared/               tipi TS condivisi (MiEvent, filtri, righe Socrata)
+web/                  React 19 + Vite; src/components/LightMap.tsx (mappa canvas), App, EventCard, FiltersBar
 ```
 
-Il flusso è unidirezionale: `fetchers` (outbound) → `core` (normalizzazione) → `application/sync`
-→ `repositories` (outbound). L'HTTP inbound chiama solo porte dell'application layer.
+- **Server**: Node ≥ 22, zero dipendenze runtime (`node:http` + `node:sqlite` + `fetch`), ~300 kB di `dist`, avvio < 100 ms.
+- **Web**: React 19 + Vite, target `es2022`. Chunk: `index` ~22 kB (app + LightMap, eager) + `vendor` ~219 kB (React). Niente chunk lazy.
+- **DB**: SQLite WAL (`busy_timeout`, migrazioni via `PRAGMA user_version`), tabella `events` + FTS5 + `venues` + `sync_state`.
 
-## Perché non Rust/Go (ora, su free tier)
+### Avvio
 
-Il server resta **zero dipendenze runtime** su Node 22 (`node:http` + `node:sqlite` + `fetch`): un solo
-processo, ~300 kB di `dist`, nessun `node_modules` a runtime, avvio <100 ms — ideale sul free tier
-(che premia memoria/CPU basse, non la dimensione del binario). Go/Rust darebbero un binario statico
-~10 MB, ma richiederebbero di riscrivere HTTP, SQLite (CGO o modernc), parsing e test: costo alto,
-beneficio scarso finché il free tier regge. Se in futuro stanca, il candidato è **Go + modernc.org/sqlite**;
-l'architettura a porte lo rende un porting meccanico per adapters, non un rewrite.
+```bash
+npm install
+npm run build     # shared + server + web
+npm start         # server su http://localhost:3001 (sync iniziale + ogni 12h)
+npm run dev       # server :3001 + vite :5173 (proxy /api)
+npm test          # 54 test (node:test, DB in-memory, fetch mockato)
+```
+
+### API
+
+| Metodo | Endpoint | Descrizione |
+| --- | --- | --- |
+| GET | `/api/health` | health check |
+| GET | `/api/events?q=&city=&category=&from=&to=&bbox=&saved=1&priceBand=&includeBig=1&limit=&offset=` | lista filtrata (`category=saved` = solo salvati; default: grandi eventi esclusi, solo finestra 15gg) |
+| GET | `/api/events/:id` | dettaglio evento |
+| POST | `/api/events/:id` body `{"saved": bool}` | salva/desalva |
+| GET | `/api/events/cities` · `/api/events/categories` | elenchi |
+| GET | `/api/venues` | venue con coordinate |
+| GET | `/api/sync/state` | ultima sync (incl. `last_sync_result`) |
+| POST | `/api/sync?from=YYYY-MM-DD` | avvia sync in background: `202`, `409` se in corso, `400` data invalida, `401` se `SYNC_TOKEN` impostato e mancante |
+| GET | `/tiles/{z}/{x}/{y}{@2x}.png` | proxy tile (Wikimedia → OSM fallback, validazione PNG, cache) |
+
+`bbox` = `sud,ovest,nord,est` in gradi decimali.
+
+### Variabili d'ambiente
+
+| Variabile | Default | Significato |
+| --- | --- | --- |
+| `PORT` | `3001` | porta HTTP |
+| `DB_PATH` | `server/data/mievents.db` | DB SQLite |
+| `WEB_DIST` | `web/dist` | build web |
+| `SYNC_ON_START` | `1` | sync all'avvio |
+| `SYNC_INTERVAL_MS` | `43200000` (12h) | sync periodica |
+| `SYNC_GEOCODE` / `SYNC_MAX_GEOCODE` | `1` / `15` | geocoding durante sync (Nominatim 1 req/s) |
+| `SYNC_VENUES` | `1` | fase venue prima degli eventi |
+| `SYNC_TOKEN` | — | se impostato, `POST /api/sync` richiede `Authorization: Bearer <token>` (timing-safe) |
+| `DEBUG_SOURCES` | `0` | `1` abilita `GET /api/debug/source?source=...` |
+| `TICKETING_SOURCES` | `0` | `1` riattiva Ticketmaster/Eventbrite/Bandsintown (servono le chiavi, off di default: producono quasi solo grandi eventi) |
+| `TICKETMASTER_API_KEY` / `EVENTBRITE_USER_TOKEN` (+`EVENTBRITE_SEARCH=1`) / `BANDSINTWN_APP_ID` (+`BANDSINTWN_ARTISTS`) | — | chiavi opzionali, solo da env (mai in codice/log) |
+
+## Connettori eventi
+
+Formato normalizzato → tabella `events` + FTS5. Dettaglio campo-per-campo in `server/src/connectors.md`.
+
+| Fonte | Stato | Formato |
+| --- | --- | --- |
+| Regione Lombardia — sagre/fiere provincia MI (2 risorse Socrata) | **attivo** | JSON SoQL (CC0), geo da `location`/`geo_x/y` |
+| MilanoToday `/eventi/` + RSS canale eventi | **attivo** | listing HTML `dal/{from}/al/{to}/` → dettaglio con JSON-LD Event |
+| Eventi@Milano, BASE Milano, Magazzini Generali (Tribe/TEC) | **attivo** | API `wp-json/tribe/events/v1` (Santeria via WP `eventi` + ACF) |
+| Cheventi.it | **attivo** | listing HTML con JSON-LD |
+| Wikidata (QLever) | **attivo** | SPARQL, filtro bbox MI + finestra server-side |
+| ViviMilano / MilanoEvents.it / Eventi@Milano RSS | **attivo** | RSS con euristiche evento + venue-hint + area MI |
+| Ticketmaster / Eventbrite / Bandsintown | off di default (`TICKETING_SOURCES=1`) | API discovery; richiedono coordinate in provincia MI |
+| ArciBellezza, teatro.it, concerti-italia.it | non raggiungibili | anti-bot (SG Captcha / 403) |
+
+## Sicurezza (stato attuale)
+
+- **Dipendenze**: `npm audit` 0 vulnerabilità; nessuna libreria di mappa (maplibre rimossa → GHSA-jrc7-96c5-q579 non più rilevante); popup React (escape automatico).
+- **Header**: CSP `default-src 'self'` (+ `style-src 'unsafe-inline'`), `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer`; API `no-store`, asset hashati `immutable`.
+- **Endpoint mutanti**: `POST /api/sync` con `SYNC_TOKEN` opzionale (timing-safe) + mutex anti-concorrenza + input validato; `POST /api/events/:id` body JSON ≤ 64 kB (413/400).
+- **Input API**: `q` sanificato per FTS5 (token quotati, max 8), `limit`/`offset` interi (400), `from`/`to` date reali (400, niente injection SoQL/SPARQL), `bbox` validato, `category`/`priceBand` allowlist; errori 500 generici (no leak).
+- **Segreti**: nessun segreto nel repo; URL esterni negli errori **redacted** (query string rimossa → niente API key in log/risposte).
+- **Tile**: solo via proxy `/tiles/` con validazione magic PNG e path `z/x/y` validati (no SSRF); upstream con UA identificativo conforme alle tile policy.
+- **Statici**: path traversal bloccato (`path.resolve` + prefisso), SPA fallback sicuro, MIME corretti.
+- Server a processo singolo, zero dipendenze runtime.
+
+## Limiti e costi (free tier)
+
+Sync ogni 12h, geocoding Nominatim max 15/sync a 1 req/s, delay 600–800 ms sulle sorgenti web, API key solo tier free. L'app resta gratis.
 
 ## Licenza
 
-[Unlicense](LICENSE) (public domain). I dati degli eventi sono di Regione Lombardia (CC0); la mappa è © OpenStreetMap contributors (ODbL).
+[Unlicense](LICENSE) (public domain). Dati eventi: Regione Lombardia (CC0). Mappa: tile © OpenStreetMap contributors · © Wikimedia Maps (via proxy `/tiles/`).
