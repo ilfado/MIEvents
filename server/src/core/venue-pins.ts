@@ -89,6 +89,10 @@ const PINS: [string, VenuePinPoint][] = [
   ["land legnano", { lat: 45.5867, lon: 8.8982, address: "Via Maestri del Lavoro 27, 20025 Legnano (MI)", city: "LEGNANO" }],
   ["santuario don gnocchi", { lat: 45.4490, lon: 9.1240, address: "Via Alfonso Capecelatro 70, 20153 Milano", city: "MILANO" }],
   ["don gnocchi", { lat: 45.4490, lon: 9.1240, address: "Via Alfonso Capecelatro 70, 20153 Milano", city: "MILANO" }],
+  ["cascina torchiera", { lat: 45.48466, lon: 9.18084, address: "Piazzale Cimitero Maggiore 18, 20156 Milano", city: "MILANO" }],
+  ["torchiera", { lat: 45.48466, lon: 9.18084, address: "Piazzale Cimitero Maggiore 18, 20156 Milano", city: "MILANO" }],
+  ["ponte della ghisolfa", { lat: 45.51118, lon: 9.22405, address: "Viale Monza 255, 20127 Milano", city: "MILANO" }],
+  ["circolo anarchico ponte della ghisolfa", { lat: 45.51118, lon: 9.22405, address: "Viale Monza 255, 20127 Milano", city: "MILANO" }],
 ];
 
 const PIN_INDEX = new Map(PINS.map(([key, pin]) => [norm(key), pin]));
