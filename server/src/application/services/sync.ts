@@ -14,6 +14,7 @@ import { milanotodaySource } from "../../adapters/outbound/fetchers/milanotoday.
 import { cheventiSource } from "../../adapters/outbound/fetchers/cheventi.js";
 import { metalitaliaSource } from "../../adapters/outbound/fetchers/metalitalia.js";
 import { radiopunkSource } from "../../adapters/outbound/fetchers/radiopunk.js";
+import { alcatrazSource, magnoliaSource } from "../../adapters/outbound/fetchers/wp-clubs.js";
 import { wikidataSource } from "../../adapters/outbound/fetchers/wikidata.js";
 import { santeriaSource } from "../../adapters/outbound/fetchers/wp-venues.js";
 import { newsRssSources } from "../../adapters/outbound/fetchers/news-rss.js";
@@ -38,6 +39,8 @@ export function defaultSources(env: NodeJS.ProcessEnv): EventSource[] {
     cheventiSource,
     metalitaliaSource,
     radiopunkSource,
+    alcatrazSource,
+    magnoliaSource,
     wikidataSource,
     santeriaSource,
     ...newsRssSources,
@@ -129,6 +132,10 @@ export async function runSync(deps: SyncDeps, opts: SyncOptions = {}): Promise<S
           d.priceMin = p.min;
           d.priceMax = p.max;
         }
+      }
+      if (d.priceMax != null && d.priceMax >= 35) {
+        skipped++;
+        continue;
       }
       const pin = d.venue || d.address ? pinForVenue(d.venue, d.address) : null;
       let lat = d.lat ?? pin?.lat ?? null;

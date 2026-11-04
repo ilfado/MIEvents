@@ -14,6 +14,7 @@ Selezionare **eventi low-cost in locali piccoli** nelle **prossime 2 settimane (
 - **Esclusione automatica di stadi, palazzetti, arene e grandi forum** (San Siro, Unipol/Mediolanum Forum, Arena Civica…) in fase di sync (`big=1`, mostrati solo con `?includeBig=1`).
 - **Finestra temporale 15 giorni** allineata fra sync e vista; gli eventi passati sono nascosti di default (`includePast=1`/`all=1` li mostra).
 - **Dedup** per titolo normalizzato + data (la stessa sagra su due location/comuni conta una volta).
+- **Filtro prezzo globale**: `priceMax ≥ 35€` → evento scartato in sync (tutte le fonti), low-cost garantito.
 - **Geolocalizzazione** via dizionario `venue-pins` (prima di Nominatim) + DB `venues` + geocoding Nominatim (cache, max 1 req/s, max 15/sync).
 
 ## Feature
@@ -101,7 +102,8 @@ Formato normalizzato → tabella `events` + FTS5. Dettaglio campo-per-campo in `
 | Eventi@Milano, BASE Milano, Magazzini Generali (Tribe/TEC) | **attivo** | API `wp-json/tribe/events/v1` (Santeria via WP `eventi` + ACF) |
 | Cheventi.it | **attivo** | listing HTML con JSON-LD (esclusi i concerti `candlelight`) |
 | Metalitalia (agenda metal) | **attivo** | listing `category/agenda` → dettaglio `/evento/` con JSON-LD `Event` |
-| Radio Punk (date punk DIY) | **attivo** | listing `?event=ID` → riga `DD/MM/YYYY TITOLO 📍 CITTÀ @VENUE` |
+| Radio Punk (date punk DIY) | **attivo** | listing → riga `DD/MM/YYYY TITOLO 📍 CITTÀ @VENUE` (categoria concerto) |
+| Alcatraz / Magnolia (WP CPT) | **attivo** | `wp-json/wp/v2/events` / `event_listing` (ACF date, skip canceled/sold_out, venue da pin) |
 | Wikidata (QLever) | **attivo** | SPARQL, filtro bbox MI + finestra server-side |
 | ViviMilano / MilanoEvents.it / Eventi@Milano RSS | **attivo** | RSS con euristiche evento + venue-hint + area MI |
 | Ticketmaster / Eventbrite / Bandsintown | off di default (`TICKETING_SOURCES=1`) | API discovery; richiedono coordinate in provincia MI |

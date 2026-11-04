@@ -180,26 +180,25 @@ test("grandi eventi saltati in sync; prezzo dal testo persistito; filtro priceBa
     { events, venues, geocoder: mockGeocoder(), extraSources: [testSource([big, cheap, free, cari])] },
     { env: {}, syncVenues: false, geocode: false },
   );
-  assert.equal(res.skipped, 1);
-  assert.equal(res.inserted, 3);
+  assert.equal(res.skipped, 2);
+  assert.equal(res.inserted, 2);
   const all = events.listEvents({ all: true });
-  assert.equal(all.total, 3);
+  assert.equal(all.total, 2);
   const got = Object.fromEntries(all.events.map((e) => [e.title, e]));
   assert.equal(got["DJ SET AL CIRCOLO"].priceBand, "fino10");
   assert.equal(got["DJ SET AL CIRCOLO"].priceMin, 8);
   assert.equal(got["DJ SET AL CIRCOLO"].priceMax, 8);
   assert.equal(got["MOSTRA GRATUITA"].priceBand, "gratis");
-  assert.equal(got["SHOW CARO"].priceBand, "cari");
-  assert.equal(got["SHOW CARO"].priceMin, 45);
+  assert.equal(got["SHOW CARO"], undefined);
   assert.equal(events.listEvents({ all: true, priceBand: "gratis" }).total, 1);
   assert.equal(events.listEvents({ all: true, priceBand: "fino10" }).total, 2);
   assert.equal(events.listEvents({ all: true, priceBand: "fino20" }).total, 2);
-  assert.equal(events.listEvents({ all: true, priceBand: "cari" }).total, 1);
+  assert.equal(events.listEvents({ all: true, priceBand: "cari" }).total, 0);
   assert.throws(() => events.listEvents({ all: true, priceBand: "zzz" as never }), /priceBand/);
   events.upsertEvent({ ...big, id: "big1", category: "concerto", saved: false, fetchedAt: "2026-11-03T00:00:00Z" } as never);
-  assert.equal(events.listEvents({ all: true }).total, 3);
+  assert.equal(events.listEvents({ all: true }).total, 2);
   const withBig = events.listEvents({ all: true, includeBig: true });
-  assert.equal(withBig.total, 4);
+  assert.equal(withBig.total, 3);
   assert.equal(withBig.events.find((e) => e.id === "big1")!.big, true);
 });
 
