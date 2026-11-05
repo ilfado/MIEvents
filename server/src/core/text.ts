@@ -158,7 +158,13 @@ export function normKey(s: string): string {
     .trim();
 }
 
-export const MI_CITY_RE = /\b(milano|monza|brianza|sesto|segrate|cinisello|rho|pero|assago|rozzano|san donato|melegnano|abbiategrasso|cernusco|gorgonzola|pioltello|cesano|corsico|binasco|cusago|paderno|senago|legnano|busto|castellanza|parabiago|novate|garbagnate|laina|limbiate|arese|baranzate|bollate|cesate|inzago|trezzano|magenta|corbetta|sedriano|vittuone|lombardia|MI)\b/i;
+const MI_CITIES = "milano|monza|brianza|segrate|cinisello|rho|pero|assago|rozzano|san donato|melegnano|abbiategrasso|cernusco|gorgonzola|pioltello|cesano|corsico|binasco|cusago|paderno|senago|legnano|busto arsizio|castellanza|parabiago|novate|garbagnate|lainate|limbiate|arese|baranzate|bollate|cesate|inzago|trezzano sul naviglio|magenta|corbetta|sedriano|vittuone|sesto san giovanni";
+export const MI_CITY_RE = new RegExp(`\\b(${MI_CITIES})\\b`, "i");
+const MI_SIGLA_RE = /(?:^|[\s,(])MI(?:[\s,).]|$)/;
+
+export function isMiArea(text: string): boolean {
+  return MI_CITY_RE.test(text) || MI_SIGLA_RE.test(text);
+}
 
 export function joinAddress(segments: Array<string | null | undefined>): string | null {
   const parts = segments.map((s) => clean(s)).filter((s): s is string => s !== null);

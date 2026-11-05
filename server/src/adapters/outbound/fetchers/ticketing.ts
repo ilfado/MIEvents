@@ -1,6 +1,6 @@
 import type { EventSource, SourceContext } from "../../../application/ports.js";
 import type { SourceResult, EventDraft } from "../../../core/types.js";
-import { distKm, inMilanoProvince, MI_CITY_RE, MILANO_CENTER } from "../../../core/text.js";
+import { distKm, inMilanoProvince, isMiArea, MILANO_CENTER } from "../../../core/text.js";
 import { isBigEvent } from "../../../core/big-events.js";
 import { getJson } from "./http.js";
 
@@ -57,7 +57,7 @@ function mapBit(e: BitEvent, from: string): EventDraft | null {
     url: e.url ?? "",
     venue: e.venue?.name ?? null,
     address: e.venue?.street_address ?? null,
-    city: (e.venue?.city ?? "MILANO").toUpperCase(),
+    city: (e.venue?.city ?? "").toUpperCase(),
     lat: lat !== null && Number.isFinite(lat) ? lat : null,
     lon: lon !== null && Number.isFinite(lon) ? lon : null,
     organizer: artists[0] ?? null,
@@ -91,7 +91,7 @@ export function ticketingSources(env: NodeJS.ProcessEnv): EventSource[] {
           const lat = venue.location?.latitude ? Number(venue.location.latitude) : null;
           const lon = venue.location?.longitude ? Number(venue.location.longitude) : null;
           const geoOk = lat !== null && lon !== null && Number.isFinite(lat) && Number.isFinite(lon) && distKm(lat, lon, MILANO_CENTER.lat, MILANO_CENTER.lon) <= 100;
-          const textOk = MI_CITY_RE.test(`${venue.name ?? ""} ${venue.city?.name ?? ""} ${venue.address?.line1 ?? ""}`);
+          const textOk = isMiArea(`${venue.name ?? ""} ${venue.city?.name ?? ""} ${venue.address?.line1 ?? ""}`);
           if (!geoOk && !textOk) continue;
           if (isBigEvent(venue.name ?? null, venue.address?.line1 ?? null, name)) continue;
           const pr = Array.isArray(e.priceRanges) ? e.priceRanges[0] : null;
@@ -110,7 +110,7 @@ export function ticketingSources(env: NodeJS.ProcessEnv): EventSource[] {
             url: e.url ?? "",
             venue: venue.name ?? null,
             address: venue.address?.line1 ?? null,
-            city: (venue.city?.name ?? "MILANO").toUpperCase(),
+            city: (venue.city?.name ?? "").toUpperCase(),
             lat: lat !== null && Number.isFinite(lat) ? lat : null,
             lon: lon !== null && Number.isFinite(lon) ? lon : null,
             organizer: null,
@@ -158,7 +158,7 @@ export function ticketingSources(env: NodeJS.ProcessEnv): EventSource[] {
             url: e.url ?? "",
             venue: venue?.name ?? null,
             address: venue?.address?.localized_address_display ?? venue?.address?.address_1 ?? null,
-            city: (venue?.address?.city ?? "MILANO").toUpperCase(),
+            city: (venue?.address?.city ?? "").toUpperCase(),
             lat: lat !== null && Number.isFinite(lat) ? lat : null,
             lon: lon !== null && Number.isFinite(lon) ? lon : null,
             organizer: e.organizer?.name ?? null,

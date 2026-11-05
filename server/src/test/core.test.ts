@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { categorize } from "../core/categorize.js";
-import { stripHtml, parseDateOnly, parseDateTime, extractDateFromText, inMilanoProvince, extractLinks, todayIso, todayRome } from "../core/text.js";
+import { stripHtml, parseDateOnly, parseDateTime, extractDateFromText, inMilanoProvince, extractLinks, todayIso, todayRome, isMiArea, MI_CITY_RE } from "../core/text.js";
 import { extractJsonLdEvents, ldToDraft } from "../core/jsonld.js";
 import { parseRssItems } from "../core/rss.js";
 import { pinForVenue } from "../core/venue-pins.js";
@@ -180,4 +180,17 @@ test("todayRome: fuso Europe/Rome, confine di mezzanotte", () => {
   assert.equal(todayRome(new Date("2026-11-03T12:00:00Z")), "2026-11-03");
   assert.equal(todayRome(new Date("2026-11-03T23:30:00Z")), "2026-11-04");
   assert.equal(todayRome(new Date("2026-11-03T22:30:00Z")), "2026-11-03");
+});
+
+test("isMiArea: preciso — no falsi positivi (mi piace, lombardia, sesto nudo, laina)", () => {
+  assert.equal(isMiArea("Milano"), true);
+  assert.equal(isMiArea("Lainate (MI)"), true);
+  assert.equal(isMiArea("Sesto San Giovanni"), true);
+  assert.equal(isMiArea("Via Roma 1, Bergamo"), false);
+  assert.equal(isMiArea("mi piace questa festa"), false);
+  assert.equal(isMiArea("lombardia"), false);
+  assert.equal(isMiArea("sesto senso"), false);
+  assert.equal(isMiArea("laina"), false);
+  assert.equal(MI_CITY_RE.test("MI"), false);
+  assert.equal(isMiArea("Senago, MI"), true);
 });

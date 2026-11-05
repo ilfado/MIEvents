@@ -97,7 +97,7 @@ export function ldToDraft(ev: LdEvent, sourceId: string, sourceName: string): Ev
   const end = parseDateTime(ev.endDate);
   const loc = typeof ev.location === "object" && ev.location !== null ? ev.location : null;
   let address: string | null = null;
-  let city = "MILANO";
+  let city = "";
   let lat: number | null = null;
   let lon: number | null = null;
   if (typeof ev.location === "string") {

@@ -6,7 +6,7 @@ import { isBigEvent } from "../../core/big-events.js";
 import { parsePriceText } from "../../core/price.js";
 import { pinForVenue } from "../../core/venue-pins.js";
 import { syncWindow } from "../../core/types.js";
-import { distKm, MI_CITY_RE, MILANO_CENTER } from "../../core/text.js";
+import { distKm, isMiArea, MILANO_CENTER } from "../../core/text.js";
 import { runVenueSync } from "./venue-sync.js";
 import { lombardiaSagreSource } from "../../adapters/outbound/fetchers/lombardia.js";
 import { lombardiaAreaPubblicaSource } from "../../adapters/outbound/fetchers/lombardia-area-pubblica.js";
@@ -185,7 +185,7 @@ export async function runSync(deps: SyncDeps, opts: SyncOptions = {}): Promise<S
           skipped++;
           continue;
         }
-      } else if (!MI_CITY_RE.test(`${d.venue ?? ""} ${d.address ?? ""} ${d.city}`)) {
+      } else if (!isMiArea(`${d.venue ?? ""} ${d.address ?? ""} ${d.city}`)) {
         skipped++;
         continue;
       }

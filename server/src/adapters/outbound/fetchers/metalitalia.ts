@@ -1,7 +1,7 @@
 import type { EventSource } from "../../../application/ports.js";
 import type { SourceResult } from "../../../core/types.js";
 import { extractJsonLdEvents, ldToDraft } from "../../../core/jsonld.js";
-import { distKm, extractLinks, inMilanoProvince, MI_CITY_RE, MILANO_CENTER } from "../../../core/text.js";
+import { distKm, extractLinks, inMilanoProvince, isMiArea, MILANO_CENTER } from "../../../core/text.js";
 import { getText, sleep } from "./http.js";
 
 const LISTING = "https://metalitalia.com/category/agenda/";
@@ -17,7 +17,7 @@ function inArea(d: { lat: number | null; lon: number | null; addrText: string })
   const t = d.addrText.trim();
   if (!t) return false;
   if (OTHER_CITY_RE.test(t)) return false;
-  return MI_CITY_RE.test(t);
+  return isMiArea(t);
 }
 
 export const metalitaliaSource: EventSource = {

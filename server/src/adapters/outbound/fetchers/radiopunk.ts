@@ -1,7 +1,7 @@
 import type { EventSource } from "../../../application/ports.js";
 import type { EventDraft, SourceResult } from "../../../core/types.js";
 import { parsePriceText } from "../../../core/price.js";
-import { MI_CITY_RE, stripHtml } from "../../../core/text.js";
+import { isMiArea, stripHtml } from "../../../core/text.js";
 import { getText } from "./http.js";
 
 const LISTING = "https://radiopunk.it/evento/";
@@ -25,7 +25,7 @@ export const radiopunkSource: EventSource = {
       const title = m[4].trim();
       const city = m[5].trim().toUpperCase();
       const venue = m[6].trim().split(/\s{2,}/)[0];
-      if (!MI_CITY_RE.test(city)) continue;
+      if (!isMiArea(city)) continue;
       if (start < ctx.fromDate || start > ctx.toDate) continue;
       const price = parsePriceText(text);
       events.push({
