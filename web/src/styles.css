@@ -2,6 +2,7 @@
   --ink: #111111;
   --paper: #ffffff;
   --bg: #f2f0ea;
+  --acid: #b6ff00;
   --red: #d92b2b;
   --yellow: #f5c518;
   --blue: #2b5fd9;
@@ -13,6 +14,13 @@
   --gray: #5c6670;
   --border: 2px solid var(--ink);
   --shadow: 4px 4px 0 var(--ink);
+}
+
+:root[data-theme="dark"] {
+  --ink: #e8e6e0;
+  --paper: #16181a;
+  --bg: #0d0f10;
+  --gray: #9aa3ad;
 }
 
 * { box-sizing: border-box; }
@@ -29,6 +37,15 @@ body {
 }
 
 .app { max-width: 1100px; margin: 0 auto; padding: 0 10px 32px; }
+
+.header-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+
+.theme-toggle {
+  font: inherit; font-size: 1.2rem; border: var(--border); background: var(--paper);
+  min-width: 42px; min-height: 42px; cursor: pointer; box-shadow: 2px 2px 0 var(--ink);
+  padding: 4px 8px; line-height: 1;
+}
+.theme-toggle:active { transform: translate(2px, 2px); box-shadow: 0 0 0 var(--ink); }
 
 .header { padding: 14px 2px 10px; border-bottom: var(--border); margin-bottom: 12px; }
 .header h1 { display: inline-flex; align-items: center; gap: 8px; }
@@ -113,7 +130,7 @@ body {
 .badge-famiglia { background: var(--pink); }
 .badge-altro { background: var(--gray); }
 .badge-price { background: var(--yellow); color: var(--ink); }
-.badge-gratis { background: var(--green); }
+.badge-gratis { background: var(--acid); color: #111111; }
 .badge-cari { background: var(--red); }
 
 .card-date { font-size: 0.78rem; font-weight: bold; }
@@ -218,6 +235,13 @@ body {
 
 .footer { margin-top: 24px; font-size: 0.72rem; color: var(--gray); text-transform: uppercase; letter-spacing: 1px; }
 .footer a { color: var(--blue); }
+
+.toast {
+  position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+  background: var(--ink); color: var(--paper); border: var(--border);
+  box-shadow: var(--shadow); padding: 10px 18px; z-index: 1000;
+  font-weight: bold; text-transform: uppercase; letter-spacing: 1px;
+}
 
 @media (max-width: 640px) {
   .map-canvas { height: 55vh; }

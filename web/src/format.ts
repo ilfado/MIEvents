@@ -40,7 +40,7 @@ function fmtEuro(n: number): string {
 
 export function formatPrice(e: MiEvent): string | null {
   if (e.priceBand === "gratis") return "GRATIS";
-  if (e.priceBand === "cari") return "CARI";
+  if (e.priceBand === "cari") return "VABBÈ";
   if (e.priceMin == null && e.priceMax == null) return null;
   if (e.priceMin != null && e.priceMax != null && e.priceMin !== e.priceMax) {
     return `${fmtEuro(e.priceMin)}–${fmtEuro(e.priceMax)}`;

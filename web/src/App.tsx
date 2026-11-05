@@ -7,9 +7,23 @@ import { EventCard } from "./components/EventCard.js";
 import { LightMap } from "./components/LightMap.js";
 import { applyQuickDate, FiltersBar } from "./components/FiltersBar.js";
 import type { QuickDate } from "./dates.js";
+import type { PriceBand } from "@mievents/shared";
 
 const FETCH_LIMIT = 500;
 const BBOX_DEBOUNCE_MS = 300;
+
+const SAVED_MSG_CARI = ["Uella", "Salvato, sciura", "Ciumbia"];
+const SAVED_MSG_GRATIS = ["Poverètt", "Dai su", "Un abbraccio"];
+
+function pick<T>(arr: T[]): T {
+  return arr[Math.floor(Math.random() * arr.length)];
+}
+
+function savedMessage(band: PriceBand | null): string {
+  if (band === "cari") return pick(SAVED_MSG_CARI);
+  if (band === "gratis") return pick(SAVED_MSG_GRATIS);
+  return "Salvato, Tac";
+}
 
 export default function App() {
   const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
@@ -21,6 +35,11 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
   const [filterByArea, setFilterByArea] = useState(false);
   const [areaEvents, setAreaEvents] = useState<MiEvent[] | null>(null);
+  const [theme, setTheme] = useState<"light" | "dark">(() =>
+    typeof localStorage !== "undefined" && localStorage.getItem("stasera-theme") === "dark" ? "dark" : "light"
+  );
+  const [toast, setToast] = useState<string | null>(null);
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const bboxRef = useRef<string | undefined>(undefined);
   const abortRef = useRef<AbortController | null>(null);
   const nextIdRef = useRef(0);
@@ -28,6 +47,22 @@ export default function App() {
 
   useEffect(() => {
     void fetchCities().then(setCities).catch(() => setCities([]));
+  }, []);
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+    try {
+      localStorage.setItem("stasera-theme", theme);
+    } catch {
+      /* storage non disponibile */
+    }
+    document.querySelector('meta[name="theme-color"]')?.setAttribute("content", theme === "dark" ? "#0d0f10" : "#f2f0ea");
+  }, [theme]);
+
+  const showToast = useCallback((msg: string) => {
+    setToast(msg);
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    toastTimer.current = setTimeout(() => setToast(null), 2500);
   }, []);
 
   const fetchAll = useCallback(async () => {
@@ -114,6 +149,7 @@ export default function App() {
         total: evState.total,
         append: false,
       });
+      if (updated.saved) showToast(savedMessage(updated.priceBand));
     } catch (err) {
       setError((err as Error).message);
     }
@@ -131,8 +167,20 @@ export default function App() {
   return (
     <div className="app">
       <header className="header">
-        <h1><img src="/logo-512.png" alt="" className="logo" /> MIEvents</h1>
-        <p className="subtitle">Eventi delle prossime 2 settimane a Milano + provincia</p>
+        <div className="header-top">
+          <h1><img src="/logo-512.png" alt="" className="logo" /> Stasera?</h1>
+          <button
+            type="button"
+            className="theme-toggle"
+            onClick={() => setTheme((t) => (t === "dark" ? "light" : "dark"))}
+            aria-pressed={theme === "dark"}
+            aria-label={theme === "dark" ? "Torna alla modalità chiara" : "Attiva la modalità scura"}
+            title={theme === "dark" ? "Togli gli occhiali" : "Metti gli occhiali"}
+          >
+            🕶️
+          </button>
+        </div>
+        <p className="subtitle">Sì, oh. Eventi low-cost delle prossime 2 settimane a Milano + provincia, senza sbatti</p>
         <nav className="view-switch" role="tablist">
           <button type="button" role="tab" aria-selected={view === "list"} className={view === "list" ? "active" : ""} onClick={() => setView("list")}>
             Lista
@@ -206,6 +254,10 @@ export default function App() {
             </div>
           )}
         </main>
+      )}
+
+      {toast && (
+        <div className="toast" role="status" aria-live="polite">{toast}</div>
       )}
 
       <footer className="footer">

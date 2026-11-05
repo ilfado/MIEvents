@@ -1,6 +1,6 @@
-# MIEvents v2.0
+# Stasera?
 
-App per **cercare, salvare e visualizzare su lista e mappa** gli eventi a Milano e in provincia.
+**Sì, oh.** App per **cercare, salvare e visualizzare su lista e mappa** gli eventi low-cost a Milano e in provincia. Cosa fare stasera, senza spenderci troppo e senza sbatti.
 
 PWA leggera (installabile, offline app shell): server Node.js **zero dipendenze runtime**, web React 19 + Vite con **mappa canvas custom** (niente librerie di mappa). Peso totale ~**250 kB raw / ~67 kB br**, tutto eager.
 

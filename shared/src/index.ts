@@ -32,7 +32,7 @@ export const PRICE_BAND_LABELS: Record<PriceBand, string> = {
   gratis: "Gratis",
   fino10: "Fino a 10€",
   fino20: "Fino a 20€",
-  cari: "Cari",
+  cari: "Vabbè",
 };
 
 export interface MiEvent {

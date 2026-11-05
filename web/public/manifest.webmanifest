@@ -1,7 +1,7 @@
 {
-  "name": "MIEvents — Eventi prossime 2 settimane Milano",
-  "short_name": "MIEvents",
-  "description": "Cerca, filtra, salva e visualizza su mappa gli eventi a Milano e in provincia.",
+  "name": "Stasera? — Eventi low-cost Milano e provincia",
+  "short_name": "Stasera?",
+  "description": "Cosa fare stasera a Milano, senza spenderci troppo e senza sbatti.",
   "lang": "it",
   "start_url": "/",
   "scope": "/",

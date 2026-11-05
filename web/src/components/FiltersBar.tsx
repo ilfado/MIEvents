@@ -34,7 +34,7 @@ export function FiltersBar({
     const range = quickDateRange(quickDate);
     active.push({
       key: "qd",
-      label: quickDate === "today" ? `oggi ${range?.from ?? ""}` : `weekend ${range?.from ?? ""}→${range?.to ?? ""}`,
+      label: quickDate === "today" ? `stasera ${range?.from ?? ""}` : `weekend ${range?.from ?? ""}→${range?.to ?? ""}`,
       clear: () => onQuickDate(""),
     });
   }
@@ -68,7 +68,7 @@ export function FiltersBar({
       </div>
 
       <div className="chips" role="group" aria-label="Filtri rapidi">
-        {([["today", "Oggi"], ["weekend", "Weekend"]] as Array<[QuickDate, string]>).map(([value, label]) => (
+        {([["today", "Stasera"], ["weekend", "Weekend"]] as Array<[QuickDate, string]>).map(([value, label]) => (
           <button
             key={value}
             type="button"
