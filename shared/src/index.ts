@@ -149,3 +149,5 @@ export interface SagreAreaPubblicaRow {
   geo_y: string | null;
   location: { type: string; coordinates: [number, number] } | null;
 }
+
+export * from "./ui-state.js";
