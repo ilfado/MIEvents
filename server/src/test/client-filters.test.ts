@@ -60,3 +60,11 @@ test("applyClientFilters: city/category/priceBand/from-to/saved", () => {
 test("geoEvents: solo con coordinate", () => {
   assert.deepEqual(geoEvents(items).map((e) => e.id), ["a", "b"]);
 });
+
+test("applyClientFilters: priceBand ad insiemi (fino10 include gratis, fino20 include gratis+fino10+fino20)", () => {
+  const f = { q: "", city: "", category: "" as const, from: "", to: "" };
+  assert.deepEqual(applyClientFilters(items, { ...f, priceBand: "gratis" }).map((e) => e.id), ["a"]);
+  assert.deepEqual(applyClientFilters(items, { ...f, priceBand: "fino10" }).map((e) => e.id).sort(), ["a", "b"]);
+  assert.deepEqual(applyClientFilters(items, { ...f, priceBand: "fino20" }).map((e) => e.id).sort(), ["a", "b", "c"]);
+  assert.deepEqual(applyClientFilters(items, { ...f, priceBand: "cari" }).map((e) => e.id), []);
+});

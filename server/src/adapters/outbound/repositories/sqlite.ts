@@ -7,6 +7,7 @@ import type { EventRepository, VenueRepository } from "../../../application/port
 import { isBigEvent } from "../../../core/big-events.js";
 import { priceBandOf } from "../../../core/price.js";
 import { addDaysIso, normKey, parseIsoDate, todayRome } from "../../../core/text.js";
+import { PRICE_BAND_INCLUSIVE } from "@mievents/shared";
 
 export interface EventRow {
   id: string;
@@ -215,13 +216,6 @@ function parseBbox(bbox: string): [number, number, number, number] | null {
   if (s > n || w > e) return null;
   return [s, w, n, e];
 }
-
-const PRICE_BAND_INCLUSIVE: Record<PriceBand, PriceBand[]> = {
-  gratis: ["gratis"],
-  fino10: ["gratis", "fino10"],
-  fino20: ["gratis", "fino10", "fino20"],
-  cari: ["cari"],
-};
 
 export interface EventRepositoryOptions {
   today?: () => string;

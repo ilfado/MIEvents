@@ -1,5 +1,12 @@
 import type { MiEvent, EventCategory, PriceBand } from "./index.js";
 
+export const PRICE_BAND_INCLUSIVE: Record<PriceBand, PriceBand[]> = {
+  gratis: ["gratis"],
+  fino10: ["gratis", "fino10"],
+  fino20: ["gratis", "fino10", "fino20"],
+  cari: ["cari"],
+};
+
 export interface ClientFilters {
   q: string;
   city: string;
@@ -25,7 +32,7 @@ export function applyClientFilters(items: MiEvent[], f: ClientFilters): MiEvent[
     if (f.category === "saved") {
       if (!e.saved) return false;
     } else if (f.category && e.category !== f.category) return false;
-    if (f.priceBand && e.priceBand !== f.priceBand) return false;
+    if (f.priceBand && !PRICE_BAND_INCLUSIVE[f.priceBand].includes(e.priceBand ?? ("cari" as PriceBand))) return false;
     if (f.from && e.start < f.from) return false;
     if (f.to && e.start > f.to) return false;
     if (qWords.length > 0) {
