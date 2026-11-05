@@ -3,6 +3,7 @@ import type { EventDraft, SourceResult, SyncSummary, VenueSourceResult } from ".
 
 export interface EventRepository {
   upsertEvent(e: EventDraft & { id: string; category: string; saved: boolean; fetchedAt: string }): "inserted" | "updated";
+  updateCoords(id: string, lat: number, lon: number): void;
   findEvent(id: string): unknown | undefined;
   setSaved(id: string, saved: boolean): boolean;
   listEvents(f: import("@mievents/shared").EventFilters): import("@mievents/shared").EventsResponse;
@@ -16,8 +17,10 @@ export interface VenueRepository {
   upsertVenue(v: { name: string; address: string | null; city: string }, now: string): { id: string; name: string; address: string | null; city: string; lat: number | null; lon: number | null };
   findByName(name: string): { id: string; name: string; address: string | null; city: string; lat: number | null; lon: number | null } | null;
   updateVenueMeta(id: string, address: string | null, city: string, source: string | null, now: string): void;
-  coordsFor(venue: string | null, address: string | null): { lat: number; lon: number } | null;
+  coordsFor(venue: string | null, address: string | null, city?: string): { lat: number; lon: number } | null;
   setVenueCoords(id: string, lat: number, lon: number): void;
+  markGeocodeFailed(id: string, at: string): void;
+  isGeocodeFailedRecently(id: string, now: string): boolean;
   listVenues(): unknown[];
 }
 

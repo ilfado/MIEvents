@@ -6,7 +6,7 @@ import { EVENT_CATEGORIES, PRICE_BANDS, type EventCategory, type EventFilters, t
 import type { EventRepository, VenueRepository } from "../../../application/ports.js";
 import { isBigEvent } from "../../../core/big-events.js";
 import { priceBandOf } from "../../../core/price.js";
-import { addDaysIso, parseIsoDate, todayRome } from "../../../core/text.js";
+import { addDaysIso, normKey, parseIsoDate, todayRome } from "../../../core/text.js";
 
 export interface EventRow {
   id: string;
@@ -78,6 +78,8 @@ export function openDb(dbPath: string): DatabaseSync {
     );
     CREATE INDEX IF NOT EXISTS idx_events_start ON events(start);
     CREATE INDEX IF NOT EXISTS idx_events_start_time ON events(start, time_start);
+    `);
+    db.exec(`
     CREATE INDEX IF NOT EXISTS idx_events_city ON events(city);
     CREATE INDEX IF NOT EXISTS idx_events_category ON events(category);
     CREATE INDEX IF NOT EXISTS idx_events_geo ON events(lat, lon);
@@ -111,6 +113,13 @@ export function openDb(dbPath: string): DatabaseSync {
       updated_at TEXT NOT NULL
     );
     CREATE INDEX IF NOT EXISTS idx_venues_name ON venues(name);
+    `);
+    try {
+      db.exec("ALTER TABLE venues ADD COLUMN geocode_failed_at TEXT");
+    } catch {
+      /* colonna gia' presente */
+    }
+    db.exec(`
     CREATE TABLE IF NOT EXISTS sync_state (
       key TEXT PRIMARY KEY,
       value TEXT NOT NULL
@@ -259,6 +268,9 @@ export function createEventRepository(db: DatabaseSync, opts: EventRepositoryOpt
     setSaved(id, saved) {
       return db.prepare("UPDATE events SET saved = ? WHERE id = ?").run(saved ? 1 : 0, id).changes > 0;
     },
+    updateCoords(id: string, lat: number, lon: number): void {
+      db.prepare("UPDATE events SET lat = ?, lon = ? WHERE id = ?").run(lat, lon, id);
+    },
     listEvents(f) {
       const clauses: string[] = [];
       const params: (string | number)[] = [];
@@ -380,35 +392,45 @@ export function createVenueRepository(db: DatabaseSync): VenueRepository {
          WHERE id = ?`,
       ).run(address, city?.toUpperCase() ?? null, source, now, id);
     },
-    coordsFor(venue, address) {
-      if (!venue && !address) return null;
-      const v = (venue ?? "").trim();
-      const a = (address ?? "").trim();
-      const exact = db
-        .prepare(
-          `SELECT lat, lon FROM venues
-           WHERE lat IS NOT NULL AND (
-             lower(name) = lower(?)
-             OR (? != '' AND lower(address) LIKE '%' || lower(?) || '%')
-           ) LIMIT 1`,
-        )
-        .get(v, a, a) as { lat: number; lon: number } | undefined;
-      if (exact) return exact;
-      if (v.length >= 6) {
-        return (
-          (db
-            .prepare(
-              `SELECT lat, lon FROM venues
-               WHERE lat IS NOT NULL AND (
-                 lower(name) LIKE '%' || lower(?) || '%'
-                 OR lower(?) LIKE '%' || lower(name) || '%'
-               )
-               ORDER BY length(name) ASC LIMIT 1`,
-            )
-            .get(v, v) as { lat: number; lon: number } | undefined) ?? null
-        );
+    coordsFor(venue, address, city = "") {
+      const v = normKey(venue ?? "");
+      const a = normKey(address ?? "");
+      const c = (city ?? "").trim().toUpperCase();
+      if (!v && !a) return null;
+      const rows = db
+        .prepare("SELECT name, address, city, lat, lon FROM venues WHERE lat IS NOT NULL AND lon IS NOT NULL")
+        .all() as { name: string; address: string | null; city: string; lat: number; lon: number }[];
+      const sameCity = (r: { city: string }) => !c || (r.city ?? "").toUpperCase() === c;
+      const pick = (r: { lat: number; lon: number }) => ({ lat: r.lat, lon: r.lon });
+      const MIN = 6;
+      let best = rows.find((r) => v !== "" && normKey(r.name) === v && sameCity(r));
+      if (best) return pick(best);
+      if (a) {
+        best = rows.find((r) => normKey(r.address ?? "") === a && sameCity(r));
+        if (best) return pick(best);
+      }
+      if (v.length >= MIN || a.length >= MIN) {
+        const cands = rows.filter((r) => {
+          if (!sameCity(r)) return false;
+          const rn = normKey(r.name);
+          const ra = normKey(r.address ?? "");
+          return (
+            (v.length >= MIN && (rn.includes(v) || v.includes(rn))) ||
+            (a.length >= MIN && (ra.includes(a) || a.includes(ra)))
+          );
+        });
+        cands.sort((x, y) => x.name.length - y.name.length);
+        if (cands.length > 0) return pick(cands[0]);
       }
       return null;
+    },
+    markGeocodeFailed(id, at) {
+      db.prepare("UPDATE venues SET geocode_failed_at = ? WHERE id = ?").run(at, id);
+    },
+    isGeocodeFailedRecently(id, now) {
+      const row = db.prepare("SELECT geocode_failed_at FROM venues WHERE id = ?").get(id) as { geocode_failed_at: string | null } | undefined;
+      if (!row?.geocode_failed_at) return false;
+      return new Date(now).getTime() - new Date(row.geocode_failed_at).getTime() < 30 * 86400000;
     },
     setVenueCoords(id, lat, lon) {
       db.prepare("UPDATE venues SET lat = ?, lon = ?, updated_at = ? WHERE id = ?").run(lat, lon, new Date().toISOString(), id);
