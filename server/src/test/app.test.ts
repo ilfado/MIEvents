@@ -481,3 +481,57 @@ test("upsertEvent rifiuta date di calendario invalide (2025-02-31)", () => {
   assert.throws(() => events.upsertEvent({ ...DRAFT, id: "bad", start: "2025-02-31", ...base } as never), /start/);
   assert.throws(() => events.upsertEvent({ ...DRAFT, id: "bad2", start: "2026-11-05", end: "2026-02-30", ...base } as never), /end/);
 });
+
+test("coordsFor: match solo stessa citta', esatto preferito, min 6 caratteri", () => {
+  const db = openDb(":memory:");
+  const venues = createVenueRepository(db);
+  const a = venues.upsertVenue({ name: "Teatro Dal Verme", address: "Via S. Orsola 2", city: "MILANO" }, "2026-11-03T00:00:00Z");
+  venues.setVenueCoords(a.id, 45.46, 9.19);
+  const b = venues.upsertVenue({ name: "Teatro Regio", address: "Via Roma 1", city: "TORINO" }, "2026-11-03T00:00:00Z");
+  venues.setVenueCoords(b.id, 45.07, 7.68);
+  assert.equal(venues.coordsFor("Teatro Dal Verme", null, "MILANO")?.lat, 45.46);
+  assert.equal(venues.coordsFor("Teatro Dal Verme", null, "TORINO"), null);
+  assert.equal(venues.coordsFor(null, "Via Roma 1", "BERGAMO"), null);
+  assert.equal(venues.coordsFor("Teatr", null, "MILANO"), null);
+});
+
+test("geocode: fallimento persistito (retry 30gg), 429/5xx halta senza marcare failed", async () => {
+  const db = openDb(":memory:");
+  const events = createEventRepository(db);
+  const venues = createVenueRepository(db);
+  const mk = () => ({ ...DRAFT, title: "X", url: "https://x/" + Math.random(), venue: "Venue Irrisolvibile", address: "Via Sconosciuta 999", city: "MILANO" });
+  let calls = 0;
+  const geocoderNull = { async geocode() { calls++; return null; } };
+  const src = { id: "t", async run() { return { sourceId: "t", events: [mk()] }; } };
+  const r1 = await runSync({ events, venues, geocoder: geocoderNull, extraSources: [src] }, { env: {}, syncVenues: false, geocode: true, geocodeSleepMs: 0, maxGeocode: 15 });
+  assert.equal(calls, 1);
+  const v = venues.findByName("Venue Irrisolvibile")!;
+  assert.equal(venues.isGeocodeFailedRecently(v.id, "2026-11-03T00:00:00Z"), true);
+  const r2 = await runSync({ events, venues, geocoder: geocoderNull, extraSources: [src] }, { env: {}, syncVenues: false, geocode: true, geocodeSleepMs: 0, maxGeocode: 15 });
+  assert.equal(calls, 1);
+  const geocoder429 = { async geocode() { calls++; throw Object.assign(new Error("geocode 429"), { geocodeRetry: true }); } };
+  const src429 = { id: "t", async run() { return { sourceId: "t", events: [{ ...DRAFT, title: "Y", url: "https://x/y" + Math.random(), venue: "Venue 429", address: "Via 429 1", city: "MILANO" }] }; } };
+  const r3 = await runSync({ events, venues, geocoder: geocoder429, extraSources: [src429] }, { env: {}, syncVenues: false, geocode: true, geocodeSleepMs: 0, maxGeocode: 15 });
+  assert.ok(r3.errors.some((e) => e.includes("halted")));
+  assert.equal(venues.isGeocodeFailedRecently(v.id, "2026-11-05T00:00:00Z"), true);
+});
+
+test("reconcile: pin/venue coords aggiornati riallineano gli eventi gia' salvati", async () => {
+  const db = openDb(":memory:");
+  const events = createEventRepository(db);
+  const venues = createVenueRepository(db);
+  const draft = { ...DRAFT, title: "SHOW TORCHIERA", url: "https://x/torch", venue: "Circolo Sconosciuto XYZ", address: null, city: "MILANO", lat: null, lon: null };
+  const src = { id: "t", async run() { return { sourceId: "t", events: [draft] }; } };
+  const geo = { async geocode() { return null; } };
+  await runSync({ events, venues, geocoder: geo, extraSources: [src] }, { env: {}, syncVenues: false, geocode: false });
+  const before = events.listEvents({ all: true }).events[0];
+  assert.equal(before.lat, null);
+  const v = venues.upsertVenue({ name: "Circolo Sconosciuto XYZ", address: "Via del Pin 1", city: "MILANO" }, "2026-11-03T00:00:00Z");
+  venues.setVenueCoords(v.id, 45.48466, 9.18084);
+  const noop = { id: "noop", async run() { return { sourceId: "noop", events: [] as never[] }; } };
+  const r = await runSync({ events, venues, geocoder: geo, extraSources: [noop] }, { env: {}, syncVenues: false, geocode: false });
+  assert.ok((r.reconciled ?? 0) >= 1);
+  const after = events.listEvents({ all: true }).events[0];
+  assert.equal(after.lat, 45.48466);
+  assert.equal(after.lon, 9.18084);
+});

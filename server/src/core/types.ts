@@ -49,6 +49,7 @@ export interface SyncSummary {
   geocoded: number;
   venuesSynced: number;
   skipped: number;
+  reconciled?: number;
   durationMs: number;
   errors: string[];
 }

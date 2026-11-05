@@ -7,6 +7,7 @@ import { parsePriceText } from "../../core/price.js";
 import { pinForVenue } from "../../core/venue-pins.js";
 import { syncWindow } from "../../core/types.js";
 import { distKm, isMiArea, MILANO_CENTER } from "../../core/text.js";
+import { venueId } from "../../adapters/outbound/repositories/sqlite.js";
 import { runVenueSync } from "./venue-sync.js";
 import { lombardiaSagreSource } from "../../adapters/outbound/fetchers/lombardia.js";
 import { lombardiaAreaPubblicaSource } from "../../adapters/outbound/fetchers/lombardia-area-pubblica.js";
@@ -109,6 +110,7 @@ export async function runSync(deps: SyncDeps, opts: SyncOptions = {}): Promise<S
   };
 
   let geocodeBudget = ctx.maxGeocode;
+  let geocodeHalted = false;
   const venueCache = new Map<string, { id: string }>();
   const coordsCache = new Map<string, { lat: number; lon: number } | null>();
 
@@ -143,13 +145,14 @@ export async function runSync(deps: SyncDeps, opts: SyncOptions = {}): Promise<S
       let lon = d.lon ?? pin?.lon ?? null;
       if (d.venue || d.address) {
         const venueName = d.venue ?? d.address ?? "";
-        let v = venueCache.get(venueName);
+        const vkey = venueId(venueName, d.address ?? pin?.address ?? null, pin?.city ?? d.city ?? "");
+        let v = venueCache.get(vkey);
         if (!v) {
           v = deps.venues.upsertVenue({ name: venueName, address: d.address ?? pin?.address ?? null, city: pin?.city ?? d.city }, fetchedAt);
-          venueCache.set(venueName, v);
+          venueCache.set(vkey, v);
         }
-        const ckey = `${d.venue ?? ""}\u0000${d.address ?? ""}`;
-        let cached = coordsCache.has(ckey) ? coordsCache.get(ckey) ?? null : deps.venues.coordsFor(d.venue, d.address);
+        const ckey = `${d.venue ?? ""}\u0000${d.address ?? ""}\u0000${d.city ?? ""}`;
+        let cached = coordsCache.has(ckey) ? coordsCache.get(ckey) ?? null : deps.venues.coordsFor(d.venue, d.address, d.city);
         if (!coordsCache.has(ckey)) coordsCache.set(ckey, cached);
         if (pin && !cached) {
           deps.venues.setVenueCoords(v.id, pin.lat, pin.lon);
@@ -164,20 +167,35 @@ export async function runSync(deps: SyncDeps, opts: SyncOptions = {}): Promise<S
           deps.venues.setVenueCoords(v.id, lat, lon);
           coordsCache.set(ckey, { lat, lon });
         }
-        if (lat == null && ctx.geocode && geocodeBudget > 0) {
-          geocodeBudget--;
-          const q = [d.address, d.venue, d.city, "MI"].filter(Boolean).join(", ");
-          const point = await deps.geocoder.geocode(q);
-          if (point) {
-            deps.venues.setVenueCoords(v.id, point.lat, point.lon);
-            coordsCache.set(ckey, point);
-            lat = point.lat;
-            lon = point.lon;
-            geocoded++;
-          } else {
+        if (lat == null && ctx.geocode && geocodeBudget > 0 && !geocodeHalted) {
+          if (deps.venues.isGeocodeFailedRecently(v.id, fetchedAt)) {
             coordsCache.set(ckey, null);
+          } else {
+            geocodeBudget--;
+            const q = [d.address, d.venue, d.city || "Milano", "Italia"].filter(Boolean).join(", ");
+            try {
+              const point = await deps.geocoder.geocode(q);
+              if (point) {
+                deps.venues.setVenueCoords(v.id, point.lat, point.lon);
+                coordsCache.set(ckey, point);
+                lat = point.lat;
+                lon = point.lon;
+                geocoded++;
+              } else {
+                coordsCache.set(ckey, null);
+                deps.venues.markGeocodeFailed(v.id, fetchedAt);
+              }
+            } catch (e) {
+              if ((e as { geocodeRetry?: boolean }).geocodeRetry) {
+                geocodeHalted = true;
+                errors.push(`geocode halted (backoff): ${(e as Error).message}`);
+                await new Promise((r) => setTimeout(r, 5000));
+              } else {
+                coordsCache.set(ckey, null);
+              }
+            }
+            await new Promise((r) => setTimeout(r, ctx.geocodeSleepMs));
           }
-          await new Promise((r) => setTimeout(r, ctx.geocodeSleepMs));
         }
       }
       if (lat != null && lon != null) {
@@ -227,5 +245,19 @@ export async function runSync(deps: SyncDeps, opts: SyncOptions = {}): Promise<S
   deps.events.setSyncState("last_total", String(fetched));
   deps.events.setSyncState("last_venues", String(venuesSynced));
 
-  return { fetched, inserted, updated, geocoded, venuesSynced, skipped, durationMs: Date.now() - started, errors };
+  let reconciled = 0;
+  try {
+    const all = deps.events.listEvents({ all: true, includeBig: true, limit: 500 });
+    for (const e of all.events) {
+      if (!e.venue) continue;
+      const c = deps.venues.coordsFor(e.venue, e.address, e.city);
+      if (c && (e.lat !== c.lat || e.lon !== c.lon)) {
+        deps.events.updateCoords(e.id, c.lat, c.lon);
+        reconciled++;
+      }
+    }
+  } catch {
+    /* reconcile best-effort */
+  }
+  return { fetched, inserted, updated, geocoded, venuesSynced, skipped, reconciled, durationMs: Date.now() - started, errors };
 }

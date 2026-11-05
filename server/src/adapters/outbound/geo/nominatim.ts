@@ -17,6 +17,9 @@ export function createNominatimGeocoder(): Geocoder & { cacheSize(): number } {
             signal: AbortSignal.timeout(8000),
           },
         );
+        if (res.status === 429 || res.status >= 500) {
+          throw Object.assign(new Error(`geocode ${res.status}`), { geocodeRetry: true });
+        }
         if (!res.ok) return null;
         const arr = (await res.json()) as Array<{ lat: string; lon: string }>;
         const first = Array.isArray(arr) ? arr[0] : undefined;
@@ -31,7 +34,8 @@ export function createNominatimGeocoder(): Geocoder & { cacheSize(): number } {
         }
         cache.set(key, point);
         return point;
-      } catch {
+      } catch (e) {
+        if ((e as { geocodeRetry?: boolean }).geocodeRetry) throw e;
         return null;
       }
     },
