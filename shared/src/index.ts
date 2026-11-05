@@ -151,3 +151,5 @@ export interface SagreAreaPubblicaRow {
 }
 
 export * from "./ui-state.js";
+
+export * from "./client-filters.js";
