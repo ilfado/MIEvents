@@ -190,8 +190,11 @@ export function LightMap({
     });
   };
   const [popup, setPopup] = useState<{ lat: number; lon: number; event?: MiEvent; cluster?: Cluster } | null>(null);
-  const [tilesVersion, setTilesVersion] = useState(0);
-  const bumpTiles = useCallback(() => setTilesVersion((n) => n + 1), []);
+  const tilesVersionRef = useRef(0);
+  const bumpTiles = useCallback(() => {
+    tilesVersionRef.current += 1;
+    drawRef.current();
+  }, []);
 
 
   const gestureRef = useRef<
@@ -339,7 +342,7 @@ export function LightMap({
         ctx.fillText(String(c.events.length), x, y + 1);
       }
     }
-  }, [clusters, selectedId, tilesVersion, bumpTiles]);
+  }, [clusters, selectedId, bumpTiles, pointersRef]);
 
   useEffect(() => {
     drawRef.current = draw;
@@ -439,9 +442,6 @@ export function LightMap({
       const dy = p.y - g.startY;
       if (Math.abs(dx) + Math.abs(dy) > 12) g.moved = true;
       if (!g.moved) return;
-      const wrap = wrapRef.current;
-      const w = wrap?.clientWidth ?? 0;
-      const h = wrap?.clientHeight ?? 0;
       const center = project(g.lat0, g.lon0, g.zoom0);
       const nw = unproject(center.x - dx, center.y - dy, g.zoom0);
       setViewDirect((v) => ({ ...v, lat: nw.lat, lon: nw.lon }));

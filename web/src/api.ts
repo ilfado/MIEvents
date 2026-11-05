@@ -9,12 +9,13 @@ export interface Filters {
   to: string;
   bbox?: string;
   offset?: number;
+  limit?: number;
   geoOnly?: boolean;
 }
 
 export const EMPTY_FILTERS: Filters = { q: "", city: "", category: "", priceBand: "", from: "", to: "" };
 
-export async function fetchEvents(f: Filters): Promise<EventsResponse> {
+export async function fetchEvents(f: Filters, init?: { signal?: AbortSignal }): Promise<EventsResponse> {
   const params = new URLSearchParams();
   if (f.q) params.set("q", f.q);
   if (f.city) params.set("city", f.city);
@@ -24,8 +25,9 @@ export async function fetchEvents(f: Filters): Promise<EventsResponse> {
   if (f.to) params.set("to", f.to);
   if (f.bbox) params.set("bbox", f.bbox);
   if (f.offset) params.set("offset", String(f.offset));
+  if (f.limit) params.set("limit", String(f.limit));
   if (f.geoOnly) params.set("geo", "1");
-  const res = await fetch(`/api/events?${params.toString()}`);
+  const res = await fetch(`/api/events?${params.toString()}`, { signal: init?.signal });
   if (!res.ok) throw new Error(`Errore caricamento eventi (${res.status})`);
   return res.json();
 }
