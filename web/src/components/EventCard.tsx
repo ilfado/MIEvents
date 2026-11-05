@@ -1,5 +1,6 @@
 import type { MiEvent } from "@mievents/shared";
 import { categoryLabel, formatDateRange, formatPrice, formatTime } from "../format.js";
+import { PixelHeart } from "./PixelIcons.js";
 
 export function EventCard({
   event,
@@ -40,7 +41,7 @@ export function EventCard({
           aria-pressed={event.saved} aria-label={event.saved ? "Rimuovi dai salvati" : "Salva evento"} title={event.saved ? "Salvato — tocca per rimuovere" : "Salva"}
           onClick={() => onToggleSaved(event)}
         >
-          {event.saved ? "♥" : "♡"}
+          <PixelHeart filled={event.saved} />
         </button>
         {event.programUrl && (
           <a className="btn-link" href={event.programUrl} target="_blank" rel="noreferrer">

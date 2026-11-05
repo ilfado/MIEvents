@@ -21,6 +21,12 @@
   --paper: #16181a;
   --bg: #0d0f10;
   --gray: #9aa3ad;
+  --blue: #8fb0ff;
+  --green: #35c96e;
+  --teal: #3fbdbd;
+  --violet: #a77bff;
+  --orange: #ffab4d;
+  --pink: #ff7ba8;
 }
 
 * { box-sizing: border-box; }
@@ -148,7 +154,7 @@ body {
   border: var(--border); background: var(--paper); cursor: pointer; box-shadow: 2px 2px 0 var(--ink);
 }
 .btn-save:active { transform: translate(2px, 2px); box-shadow: none; }
-.btn-saved { background: var(--acid); color: #111111; }
+.btn-saved { background: var(--red); color: var(--paper); }
 .btn-link { font-size: 0.78rem; font-weight: bold; color: var(--blue); text-transform: uppercase; letter-spacing: 1px; }
 
 .map-wrap { position: relative; }

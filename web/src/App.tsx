@@ -6,6 +6,7 @@ import { EMPTY_FILTERS, fetchCities, fetchEvents, type Filters } from "./api.js"
 import { loadSavedIds, toggleSavedId } from "./saved.js";
 import { EventCard } from "./components/EventCard.js";
 import { LightMap } from "./components/LightMap.js";
+import { PixelShades } from "./components/PixelIcons.js";
 import { applyQuickDate, FiltersBar } from "./components/FiltersBar.js";
 import type { QuickDate } from "./dates.js";
 import type { PriceBand } from "@mievents/shared";
@@ -169,7 +170,7 @@ export default function App() {
             aria-label={theme === "dark" ? "Torna alla modalità chiara" : "Attiva la modalità scura"}
             title={theme === "dark" ? "Togli gli occhiali" : "Metti gli occhiali"}
           >
-            🕶️
+            <PixelShades />
           </button>
         </div>
         <p className="subtitle">Sì, oh. Eventi low-cost delle prossime 2 settimane a Milano + provincia, senza sbatti</p>
