@@ -166,6 +166,13 @@ export function isMiArea(text: string): boolean {
   return MI_CITY_RE.test(text) || MI_SIGLA_RE.test(text);
 }
 
+export function extractMiCity(text: string): string {
+  const m = text.match(MI_CITY_RE);
+  if (m) return m[1].toUpperCase();
+  if (MI_SIGLA_RE.test(text)) return "MILANO";
+  return "";
+}
+
 export function joinAddress(segments: Array<string | null | undefined>): string | null {
   const parts = segments.map((s) => clean(s)).filter((s): s is string => s !== null);
   return parts.length > 0 ? parts.join(", ") : null;

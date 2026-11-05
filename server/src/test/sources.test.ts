@@ -472,3 +472,17 @@ test("wp-clubs: CPT events Alcatraz via wp-json (acf date, skip canceled, prezzo
   const res2 = await magnoliaSource.run(makeCtx({ fetchImpl: mockFetch, fromDate: "2026-11-01", toDate: "2026-11-30", limits: { "wp-magnoliaPages": 1 } }));
   assert.ok(res2.events.length >= 0);
 });
+
+test("jsonld: city estratta dal testo indirizzo/venue se manca addressLocality (no default cieco)", async () => {
+  const { ldToDraft } = await import("../core/jsonld.js");
+  const ev = { "@type": "Event", name: "Concerto", startDate: "2026-11-10T20:00:00+01:00", url: "https://www.milanotoday.it/eventi/x/",
+    location: { "@type": "Place", name: "Teatro Carcano", address: "Via Marco Polo 3, Milano" } };
+  const d = ldToDraft(ev as never, "milanotoday-eventi", "MilanoToday");
+  assert.equal(d?.city, "MILANO");
+  const ev2 = { "@type": "Event", name: "Fuori", startDate: "2026-11-10T20:00:00+01:00", url: "https://x/", location: { "@type": "Place", name: "Arena", address: "Via Roma 1, Bergamo" } };
+  const d2 = ldToDraft(ev2 as never, "x", "X");
+  assert.equal(d2?.city, "");
+  const ev3 = { "@type": "Event", name: "Solo venue", startDate: "2026-11-10T20:00:00+01:00", url: "https://x/", location: { "@type": "Place", name: "Circolo Magnolia, Milano" } };
+  const d3 = ldToDraft(ev3 as never, "x", "X");
+  assert.equal(d3?.city, "MILANO");
+});

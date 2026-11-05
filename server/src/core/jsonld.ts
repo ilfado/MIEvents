@@ -1,4 +1,4 @@
-import { stripHtml, parseDateTime, safeUrl } from "./text.js";
+import { extractMiCity, stripHtml, parseDateTime, safeUrl } from "./text.js";
 import type { EventDraft } from "./types.js";
 import type { ParsedPrice } from "./price.js";
 
@@ -117,6 +117,10 @@ export function ldToDraft(ev: LdEvent, sourceId: string, sourceName: string): Ev
         lon = null;
       }
     }
+  }
+  if (!city) {
+    const addrText = [typeof ev.location === "string" ? ev.location : loc?.name, address].filter(Boolean).join(" ");
+    city = extractMiCity(addrText);
   }
   const price = ldPrice(ev);
   return {
