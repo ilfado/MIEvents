@@ -145,7 +145,7 @@ export default function App() {
   const onToggleSaved = useCallback((e: MiEvent) => {
     const willSave = !savedIds.has(e.id);
     setSavedIds((prev) => toggleSavedId(prev, e.id));
-    if (willSave) showToast(savedMessage(null));
+    if (willSave) showToast(savedMessage(e.priceBand));
   }, [savedIds, showToast]);
 
   const visible = useMemo(() => {
