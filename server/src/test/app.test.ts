@@ -448,3 +448,36 @@ test("filtro globale distanza: <=100km da Milano se geo, altrimenti testo MI; fu
   assert.equal(res.inserted, 1);
   assert.equal(events.listEvents({ all: true }).events[0].title, "EVENTO SENZA GEO MA MI");
 });
+
+test("listEvents: from/to disattivano la finestra di default (anche passato e +20gg)", () => {
+  const db = openDb(":memory:");
+  const events = createEventRepository(db, { today: () => "2026-11-03" });
+  const base = { category: "altro" as const, saved: false, fetchedAt: "2026-11-03T00:00:00Z", sourceName: "T" };
+  const mk = (id: string, start: string, end: string | null = null, big = false) =>
+    events.upsertEvent({ ...DRAFT, id, title: id, start, end, venue: big ? "Stadio San Siro" : "Circolo X", address: "Via Milano 1", city: "MILANO", url: "https://x/" + id, ...base, big } as never);
+  mk("IN-OGGI", "2026-11-03");
+  mk("FUTURO-20", "2026-11-23");
+  mk("PASSATO", "2020-01-15");
+  mk("BIG-SALVATO", "2026-11-05", null, true);
+
+  events.setSaved("FUTURO-20", true);
+  events.setSaved("PASSATO", true);
+  assert.equal(events.listEvents({}).total, 1); // default: solo finestra 15gg, big escluso -> solo IN-OGGI
+  assert.equal(events.listEvents({ all: true, includeBig: true }).total, 4);
+  assert.equal(events.listEvents({ from: "2026-11-20", to: "2026-11-25" }).total, 1);
+  assert.equal(events.listEvents({ from: "2026-11-20", to: "2026-11-25" }).events[0].id, "FUTURO-20");
+  assert.equal(events.listEvents({ from: "2020-01-01", to: "2020-12-31" }).total, 1);
+  assert.equal(events.listEvents({ from: "2020-01-01", to: "2020-12-31" }).events[0].id, "PASSATO");
+  assert.equal(events.listEvents({}).events.some((e) => e.id === "BIG-SALVATO"), false);
+  // filtro 15gg/passati vale anche sui salvati
+  assert.equal(events.listEvents({ savedOnly: true }).total, 0);
+  assert.equal(events.listEvents({ savedOnly: true, all: true }).total, 2);
+});
+
+test("upsertEvent rifiuta date di calendario invalide (2025-02-31)", () => {
+  const db = openDb(":memory:");
+  const events = createEventRepository(db, { today: () => "2026-11-03" });
+  const base = { category: "altro" as const, saved: false, fetchedAt: "2026-11-03T00:00:00Z", sourceName: "T" };
+  assert.throws(() => events.upsertEvent({ ...DRAFT, id: "bad", start: "2025-02-31", ...base } as never), /start/);
+  assert.throws(() => events.upsertEvent({ ...DRAFT, id: "bad2", start: "2026-11-05", end: "2026-02-30", ...base } as never), /end/);
+});

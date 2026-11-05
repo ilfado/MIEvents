@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { categorize } from "../core/categorize.js";
-import { stripHtml, parseDateOnly, parseDateTime, extractDateFromText, inMilanoProvince, extractLinks, todayIso } from "../core/text.js";
+import { stripHtml, parseDateOnly, parseDateTime, extractDateFromText, inMilanoProvince, extractLinks, todayIso, todayRome } from "../core/text.js";
 import { extractJsonLdEvents, ldToDraft } from "../core/jsonld.js";
 import { parseRssItems } from "../core/rss.js";
 import { pinForVenue } from "../core/venue-pins.js";
@@ -174,4 +174,10 @@ test("ftsQuery", () => {
   assert.equal(ftsQuery("festa birra"), '"festa" AND "birra"*');
   assert.equal(ftsQuery('  "q*" '), '"q"*');
   assert.equal(ftsQuery("   "), '""');
+});
+
+test("todayRome: fuso Europe/Rome, confine di mezzanotte", () => {
+  assert.equal(todayRome(new Date("2026-11-03T12:00:00Z")), "2026-11-03");
+  assert.equal(todayRome(new Date("2026-11-03T23:30:00Z")), "2026-11-04");
+  assert.equal(todayRome(new Date("2026-11-03T22:30:00Z")), "2026-11-03");
 });

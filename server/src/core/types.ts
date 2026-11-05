@@ -66,8 +66,9 @@ export interface SyncOptions {
   env?: NodeJS.ProcessEnv;
 }
 
+import { addDaysIso, todayRome } from "./text.js";
+
 export function syncWindow(now = new Date(), days = 15): { fromDate: string; toDate: string } {
-  const from = now.toISOString().slice(0, 10);
-  const to = new Date(now.getTime() + days * 86400000).toISOString().slice(0, 10);
-  return { fromDate: from, toDate: to };
+  const from = todayRome(now);
+  return { fromDate: from, toDate: addDaysIso(from, days) };
 }

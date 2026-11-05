@@ -6,7 +6,7 @@ import { EVENT_CATEGORIES, PRICE_BANDS, type EventCategory, type EventFilters, t
 import type { EventRepository, VenueRepository } from "../../../application/ports.js";
 import { isBigEvent } from "../../../core/big-events.js";
 import { priceBandOf } from "../../../core/price.js";
-import { parseIsoDate } from "../../../core/text.js";
+import { addDaysIso, parseIsoDate, todayRome } from "../../../core/text.js";
 
 export interface EventRow {
   id: string;
@@ -77,6 +77,7 @@ export function openDb(dbPath: string): DatabaseSync {
       big INTEGER NOT NULL DEFAULT 0
     );
     CREATE INDEX IF NOT EXISTS idx_events_start ON events(start);
+    CREATE INDEX IF NOT EXISTS idx_events_start_time ON events(start, time_start);
     CREATE INDEX IF NOT EXISTS idx_events_city ON events(city);
     CREATE INDEX IF NOT EXISTS idx_events_category ON events(category);
     CREATE INDEX IF NOT EXISTS idx_events_geo ON events(lat, lon);
@@ -213,7 +214,12 @@ const PRICE_BAND_INCLUSIVE: Record<PriceBand, PriceBand[]> = {
   cari: ["cari"],
 };
 
-export function createEventRepository(db: DatabaseSync): EventRepository {
+export interface EventRepositoryOptions {
+  today?: () => string;
+}
+
+export function createEventRepository(db: DatabaseSync, opts: EventRepositoryOptions = {}): EventRepository {
+  const todayFn = opts.today ?? todayRome;
   const stmtCache = new Map<string, { count: StatementSync; rows: StatementSync }>();
   const upsertDraft = db.prepare(`
     INSERT INTO events (
@@ -235,6 +241,8 @@ export function createEventRepository(db: DatabaseSync): EventRepository {
   `);
   return {
     upsertEvent(e) {
+      parseIsoDate(e.start, "start");
+      if (e.end) parseIsoDate(e.end, "end");
       const existing = db.prepare("SELECT id FROM events WHERE id = ?").get(e.id);
       const priceBand = priceBandOf(e.priceMin ?? null, e.priceMax ?? null);
       const big = isBigEvent(e.venue, e.address, e.title) ? 1 : 0;
@@ -281,16 +289,19 @@ export function createEventRepository(db: DatabaseSync): EventRepository {
       }
       if (!f.includeBig) clauses.push("big = 0");
       if (f.from) {
-        clauses.push("date(start) >= date(?)");
+        clauses.push("start >= ?");
         params.push(parseIsoDate(f.from, "from"));
       }
       if (f.to) {
-        clauses.push("date(start) <= date(?)");
+        clauses.push("start <= ?");
         params.push(parseIsoDate(f.to, "to"));
       }
-      if (!f.all && !f.includePast) {
-        clauses.push("date(COALESCE(end, start)) >= date('now', 'localtime')");
-        clauses.push("date(start) <= date('now', 'localtime', '+15 days')");
+      if (!f.all && !f.includePast && !f.from && !f.to) {
+        const today = todayFn();
+        clauses.push("COALESCE(end, start) >= ?");
+        params.push(today);
+        clauses.push("start <= ?");
+        params.push(addDaysIso(today, 15));
       }
       if (f.geoOnly || f.bbox) {
         clauses.push("lat IS NOT NULL AND lon IS NOT NULL");
@@ -307,7 +318,7 @@ export function createEventRepository(db: DatabaseSync): EventRepository {
         if (stmtCache.size > 50) stmtCache.clear();
         cached = {
           count: db.prepare(`SELECT COUNT(*) AS c FROM events ${where}`),
-          rows: db.prepare(`SELECT events.* FROM events ${where} ORDER BY date(start) ASC, time_start ASC LIMIT ? OFFSET ?`),
+          rows: db.prepare(`SELECT events.* FROM events ${where} ORDER BY start ASC, time_start ASC LIMIT ? OFFSET ?`),
         };
         stmtCache.set(where, cached);
       }

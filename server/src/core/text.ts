@@ -71,6 +71,22 @@ export function extractDateFromText(text: string): string | null {
   return null;
 }
 
+const ROME_FMT = new Intl.DateTimeFormat("it-IT", { timeZone: "Europe/Rome", year: "numeric", month: "2-digit", day: "2-digit" });
+
+export function todayRome(now = new Date()): string {
+  const parts = ROME_FMT.formatToParts(now);
+  const y = parts.find((p) => p.type === "year")?.value ?? "";
+  const m = parts.find((p) => p.type === "month")?.value ?? "";
+  const d = parts.find((p) => p.type === "day")?.value ?? "";
+  return `${y}-${m}-${d}`;
+}
+
+export function addDaysIso(iso: string, days: number): string {
+  const d = new Date(`${iso}T12:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
 export function todayIso(now = new Date()): string {
   return now.toISOString().slice(0, 10);
 }
