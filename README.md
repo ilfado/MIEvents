@@ -2,6 +2,12 @@
 
 **Sì, oh.** App per **cercare, salvare e visualizzare su lista e mappa** gli eventi low-cost a Milano e in provincia. Cosa fare stasera, senza spenderci troppo e senza sbatti.
 
+## Intent
+
+**Stasera?** è un'app **punk**: pubblica, **senza pubblicità**, senza account e senza pretese. Racconta solo eventi **a buon mercato** nelle prossime due settimane — concerti da 10€, sagre, mostre gratis, serate in locali piccoli — per **milanesi e lombardi giovani e millennials** con molta voglia di fare e **0 sbatti**.
+
+Il tono è **minimal, canzonatorio, fresco e un po' meme**: microcopy in milanese (“Salvato, Tac”, “Uella”, “Poverètt”), estetica brutalista bianco/nero con verde acido, dark mode con gli occhiali da sole 🕶️. Se cerchi lo stadio, sei sull'app sbagliata.
+
 PWA leggera (installabile, offline app shell): server Node.js **zero dipendenze runtime**, web React 19 + Vite con **mappa canvas custom** (niente librerie di mappa). Peso totale ~**250 kB raw / ~67 kB br**, tutto eager.
 
 ---

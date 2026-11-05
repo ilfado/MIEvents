@@ -148,7 +148,7 @@ body {
   border: var(--border); background: var(--paper); cursor: pointer; box-shadow: 2px 2px 0 var(--ink);
 }
 .btn-save:active { transform: translate(2px, 2px); box-shadow: none; }
-.btn-saved { background: var(--red); color: var(--paper); }
+.btn-saved { background: var(--acid); color: #111111; }
 .btn-link { font-size: 0.78rem; font-weight: bold; color: var(--blue); text-transform: uppercase; letter-spacing: 1px; }
 
 .map-wrap { position: relative; }
