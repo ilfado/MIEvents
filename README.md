@@ -27,7 +27,7 @@ Selezionare **eventi low-cost in locali piccoli** nelle **prossime 2 settimane (
 
 - **Lista eventi**: ricerca full-text FTS5 (SQLite, case/accent-insensitive, query sanificate), filtri per testo, comune, categoria, date (validate `YYYY-MM-DD`), fascia prezzo, solo salvati, solo con geo, bounding box mappa.
 - **Mappa `LightMap`** (canvas 2D custom, zero librerie): pan/pinch/wheel/zoom-to-point con Pointer Events, overzoom tile, marker quadrati per categoria + clustering (solo zoom < 11), popup ancorato, filtro per area visibile, clamp automatico al Nord Italia (zoom minimo dinamico). Tile raster servite dal **proxy proprio** `GET /tiles/{z}/{x}/{y}.png` (cache server 2000 tile + cache browser 1 giorno).
-- **Salvataggio** ★ persistente in SQLite (`POST /api/events/:id {saved}`), filtro "solo salvati".
+- **Salvati** ★ solo **client-side** (localStorage `mievents:saved:v1`), caricati all'apertura; il toggle è locale (la rotta `POST /api/events/:id {saved}` resta disponibile server-side ma il client non la usa).
 - **PWA**: manifest + icone, service worker (cache `v9`, app shell, esclude `/api/` e `/tiles/`), installabile.
 - **Performance**: compressione gzip/br on-the-fly (con `Vary: Accept-Encoding` e cache per encoding), `Cache-Control: immutable` su `/assets/*`, `no-store` sulle API.
 

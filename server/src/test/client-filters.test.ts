@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { applyClientFilters, geoEvents } from "@mievents/shared";
+import { applyClientFilters, geoEvents, withSaved } from "@mievents/shared";
 import type { MiEvent } from "@mievents/shared";
 
 function ev(id: string, over: Partial<MiEvent> = {}): MiEvent {
@@ -67,4 +67,11 @@ test("applyClientFilters: priceBand ad insiemi (fino10 include gratis, fino20 in
   assert.deepEqual(applyClientFilters(items, { ...f, priceBand: "fino10" }).map((e) => e.id).sort(), ["a", "b"]);
   assert.deepEqual(applyClientFilters(items, { ...f, priceBand: "fino20" }).map((e) => e.id).sort(), ["a", "b", "c"]);
   assert.deepEqual(applyClientFilters(items, { ...f, priceBand: "cari" }).map((e) => e.id), []);
+});
+
+test("withSaved: applica i salvati da localStorage agli eventi", () => {
+  const out = withSaved(items, new Set(["b"]));
+  assert.deepEqual(out.map((e) => e.saved), [false, true, false]);
+  const f = { q: "", city: "", category: "saved" as const, priceBand: "" as const, from: "", to: "" };
+  assert.deepEqual(applyClientFilters(out, f).map((e) => e.id), ["b"]);
 });

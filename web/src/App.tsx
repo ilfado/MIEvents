@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { ErrorBoundary } from "./components/ErrorBoundary.js";
 import type { MiEvent } from "@mievents/shared";
-import { applyClientFilters, eventsReducer, geoEvents, initialEventsState } from "@mievents/shared";
-import { EMPTY_FILTERS, fetchCities, fetchEvents, toggleSaved, type Filters } from "./api.js";
+import { applyClientFilters, eventsReducer, geoEvents, initialEventsState, withSaved } from "@mievents/shared";
+import { EMPTY_FILTERS, fetchCities, fetchEvents, type Filters } from "./api.js";
+import { loadSavedIds, toggleSavedId } from "./saved.js";
 import { EventCard } from "./components/EventCard.js";
 import { LightMap } from "./components/LightMap.js";
 import { applyQuickDate, FiltersBar } from "./components/FiltersBar.js";
@@ -29,6 +30,7 @@ export default function App() {
   const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
   const [quickDate, setQuickDate] = useState<QuickDate>("");
   const [evState, dispatch] = useReducer(eventsReducer, initialEventsState);
+  const [savedIds, setSavedIds] = useState<Set<string>>(() => loadSavedIds());
   const [cities, setCities] = useState<string[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [view, setView] = useState<"list" | "map">("list");
@@ -139,26 +141,16 @@ export default function App() {
     }, 80);
   }, []);
 
-  const onToggleSaved = useCallback(async (e: MiEvent) => {
-    try {
-      const updated = await toggleSaved(e);
-      dispatch({
-        type: "success",
-        id: nextIdRef.current,
-        events: evState.items.map((p) => (p.id === updated.id ? updated : p)),
-        total: evState.total,
-        append: false,
-      });
-      if (updated.saved) showToast(savedMessage(updated.priceBand));
-    } catch (err) {
-      setError((err as Error).message);
-    }
-  }, [evState.items, evState.total]);
+  const onToggleSaved = useCallback((e: MiEvent) => {
+    const willSave = !savedIds.has(e.id);
+    setSavedIds((prev) => toggleSavedId(prev, e.id));
+    if (willSave) showToast(savedMessage(null));
+  }, [savedIds, showToast]);
 
   const visible = useMemo(() => {
-    const base = areaEvents ?? evState.items;
+    const base = withSaved(areaEvents ?? evState.items, savedIds);
     return applyClientFilters(base, filters);
-  }, [areaEvents, evState.items, filters]);
+  }, [areaEvents, evState.items, filters, savedIds]);
 
   const mapEvents = useMemo(() => geoEvents(visible), [visible]);
   const selected = useMemo(() => visible.find((e) => e.id === selectedId) ?? null, [visible, selectedId]);

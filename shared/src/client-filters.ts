@@ -46,3 +46,7 @@ export function applyClientFilters(items: MiEvent[], f: ClientFilters): MiEvent[
 export function geoEvents(items: MiEvent[]): MiEvent[] {
   return items.filter((e) => e.lat != null && e.lon != null);
 }
+
+export function withSaved(items: MiEvent[], savedIds: ReadonlySet<string>): MiEvent[] {
+  return items.map((e) => ({ ...e, saved: savedIds.has(e.id) }));
+}
