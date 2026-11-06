@@ -153,9 +153,10 @@ body {
   position: absolute; top: 8px; right: 8px;
   font: inherit; font-size: 1.1rem; font-weight: bold; width: 40px; height: 40px;
   border: var(--border); background: var(--paper); cursor: pointer; box-shadow: 2px 2px 0 var(--ink);
+  display: flex; align-items: center; justify-content: center; padding: 0;
 }
 .btn-save:active { transform: translate(2px, 2px); box-shadow: none; }
-.btn-saved { background: var(--red); color: var(--paper); }
+.save-heart { width: 26px; height: 26px; image-rendering: pixelated; display: block; }
 .btn-link { font-size: 0.78rem; font-weight: bold; color: var(--blue); text-transform: uppercase; letter-spacing: 1px; }
 
 .map-wrap { position: relative; }

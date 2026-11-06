@@ -41,7 +41,11 @@ export function EventCard({
           aria-pressed={event.saved} aria-label={event.saved ? "Rimuovi dai salvati" : "Salva evento"} title={event.saved ? "Salvato — tocca per rimuovere" : "Salva"}
           onClick={() => onToggleSaved(event)}
         >
-          <PixelHeart filled={event.saved} />
+          {event.saved ? (
+            <img src="/logo-512.png" alt="" className="save-heart" />
+          ) : (
+            <PixelHeart />
+          )}
         </button>
         {event.programUrl && (
           <a className="btn-link" href={event.programUrl} target="_blank" rel="noreferrer">
