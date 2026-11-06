@@ -161,7 +161,7 @@ export default function App() {
     <div className="app">
       <header className="header">
         <div className="header-top">
-          <h1><img src="/logo-512.png" alt="" className="logo" /> Stasera?</h1>
+          <h1><img src="/logo-512.png" alt="" className="logo" /> <span className="brand-box">Stasera?</span></h1>
           <button
             type="button"
             className="theme-toggle"
@@ -173,7 +173,7 @@ export default function App() {
             <PixelShades />
           </button>
         </div>
-        <p className="subtitle">Sì, oh. Eventi low-cost delle prossime 2 settimane a Milano + provincia, senza sbatti</p>
+        <p className="subtitle">Eventi low-cost delle prossime 2 settimane a Milano + provincia, senza sbatti</p>
         <nav className="view-switch" role="tablist">
           <button type="button" role="tab" aria-selected={view === "list"} className={view === "list" ? "active" : ""} onClick={() => setView("list")}>
             Lista

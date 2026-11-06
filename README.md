@@ -1,6 +1,6 @@
 # Stasera?
 
-**Sì, oh.** App per **cercare, salvare e visualizzare su lista e mappa** gli eventi low-cost a Milano e in provincia. Cosa fare stasera, senza spenderci troppo e senza sbatti.
+App per **cercare, salvare e visualizzare su lista e mappa** gli eventi low-cost a Milano e in provincia. Cosa fare stasera, senza spenderci troppo e senza sbatti.
 
 ## Intent
 
