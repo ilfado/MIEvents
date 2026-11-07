@@ -6,7 +6,7 @@ import { isBigEvent } from "../../core/big-events.js";
 import { parsePriceText } from "../../core/price.js";
 import { pinForVenue } from "../../core/venue-pins.js";
 import { syncWindow } from "../../core/types.js";
-import { distKm, isMiArea, MILANO_CENTER } from "../../core/text.js";
+import { distKm, isMiArea, MILANO_CENTER, normKey } from "../../core/text.js";
 import { venueId } from "../../adapters/outbound/repositories/sqlite.js";
 import { runVenueSync } from "./venue-sync.js";
 import { lombardiaSagreSource } from "../../adapters/outbound/fetchers/lombardia.js";
@@ -52,7 +52,7 @@ export function defaultSources(env: NodeJS.ProcessEnv): EventSource[] {
 
 export function draftId(d: EventDraft): string {
   if (d._id) return d._id;
-  return createHash("sha1").update(`${d.sourceId}|${d.url}|${d.start}`).digest("hex").slice(0, 16);
+  return createHash("sha1").update(`${normKey(d.title).slice(0, 120)}|${d.start}`).digest("hex").slice(0, 16);
 }
 
 export interface SyncRunner {

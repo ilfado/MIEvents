@@ -535,3 +535,15 @@ test("reconcile: pin/venue coords aggiornati riallineano gli eventi gia' salvati
   assert.equal(after.lat, 45.48466);
   assert.equal(after.lon, 9.18084);
 });
+
+test("dedup cross-fonte: stessa sagra (titolo normalizzato + data) da fonti diverse -> 1 evento", async () => {
+  const db = openDb(":memory:");
+  const events = createEventRepository(db);
+  const venues = createVenueRepository(db);
+  const sagra = { ...DRAFT, title: "Sagra della Castagna 2026!", start: "2026-11-08", venue: "Piazza del Comune", city: "MILANO" };
+  const srcA = { id: "regione", async run() { return { sourceId: "regione", events: [{ ...sagra, url: "https://regione/x" }] }; } };
+  const srcB = { id: "panesalamina", async run() { return { sourceId: "panesalamina", events: [{ ...sagra, title: "sagra della castagna 2026", url: "https://panesalamina/y" }] }; } };
+  const res = await runSync({ events, venues, geocoder: mockGeocoder(), extraSources: [srcA, srcB] }, { env: {}, syncVenues: false, geocode: false });
+  assert.equal(events.listEvents({ all: true }).total, 1);
+  assert.equal(res.updated, 1);
+});
