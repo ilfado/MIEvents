@@ -111,6 +111,7 @@ Formato normalizzato → tabella `events` + FTS5. Dettaglio campo-per-campo in `
 | Radio Punk (date punk DIY) | **attivo** | listing → riga `DD/MM/YYYY TITOLO 📍 CITTÀ @VENUE` (categoria concerto) |
 | Alcatraz / Magnolia (WP CPT) | **attivo** | `wp-json/wp/v2/events` / `event_listing` (ACF date, skip canceled/sold_out, venue da pin) |
 | PaneSalamina (feast, BG/BS/CR ≤100km) | **attivo** | `wp-json/wp/v2/feast` (days[], address lat/lng, skip annullati) |
+| Vivere Bergamo (eventi.bergamo.it) | **attivo** | iCal `/calendario/?ical=1` (VEVENT, province ≤100km, prezzo da testo) |
 | Wikidata (QLever) | **attivo** | SPARQL, filtro bbox MI + finestra server-side |
 | ViviMilano / MilanoEvents.it / Eventi@Milano RSS | **attivo** | RSS con euristiche evento + venue-hint + area MI |
 | Ticketmaster / Eventbrite / Bandsintown | off di default (`TICKETING_SOURCES=1`) | API discovery; richiedono coordinate in provincia MI |

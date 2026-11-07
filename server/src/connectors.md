@@ -211,3 +211,8 @@ I locali/location sono indicizzati in una tabella dedicata `venues(id, name, add
 - `panesalamina.com/wp-json/wp/v2/feast?per_page=100&page=N` — ACF: days[] (YYYYMMDD), address.lat/lng/city, evento_annullato
 - un evento con start=min(days), end=max(days); skip annullati; filtro geo <=100km da Milano (Bergamo/Brescia/Cremona) o testo MI; prezzo da `acf.enter`/testo; categoria sagra
 - dedup cross-fonte: stesso titolo normalizzato + start -> stesso id (merge con Regione Lombardia)
+
+## Vivere Bergamo (eventi.bergamo.it) — iCal pubblico
+- `/calendario/?ical=1` -> VEVENT (DTSTART/DTEND Europe/Rome, SUMMARY, LOCATION, DESCRIPTION, URL, UID)
+- filtro: provincia entro ~100km da Milano (MI/MB/BG/BS/CR/CO/VA/LC) da LOCATION; prezzo da DESCRIPTION; _id=UID; geo via pins/Nominatim
+- sync: filtro no-geo esteso a `isArea100Text` (province entro 100km)

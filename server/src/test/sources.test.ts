@@ -504,3 +504,57 @@ test("panesalamina: CPT feast via wp-json (days multi-giorno, geo 100km, skip an
   assert.equal(res.events[0].city, "BERGAMO");
   assert.equal((res.events[0] as any).categoryHint, "sagra");
 });
+
+test("ics parser: unfold, unescape, DTSTART TZ, campi", async () => {
+  const { parseIcs } = await import("../core/ics.js");
+  const ics = [
+    "BEGIN:VCALENDAR",
+    "BEGIN:VEVENT",
+    "UID:225837@www.eventi.bergamo.it",
+    "DTSTART;TZID=Europe/Rome:20261128T223000",
+    "DTEND;TZID=Europe/Rome:20261128T235900",
+    "SUMMARY:Revival con Dj StefanOne\, Keller Factory - Curno",
+    "LOCATION:Keller Factory\, Via Bergamo\, 32\, 24035 Curno BG\, Italia",
+    "DESCRIPTION:Ingresso 10 euro\nCurno 28 Novembre 2026",
+    "URL:https://www.eventi.bergamo.it/evento/x/",
+    "END:VEVENT",
+    "END:VCALENDAR",
+  ].join("\r\n");
+  const evs = parseIcs(ics);
+  assert.equal(evs.length, 1);
+  assert.equal(evs[0].dtstart, "2026-11-28");
+  assert.equal(evs[0].dtstartTime, "22:30");
+  assert.equal(evs[0].summary.includes("Dj StefanOne, Keller"), true);
+  assert.equal(evs[0].location.includes("Curno BG"), true);
+});
+
+test("vivere-bergamo: iCal /calendario/?ical=1 -> eventi, filtro province entro 100km, prezzo dal testo", async () => {
+  const { bergamoSource } = await import("../adapters/outbound/fetchers/bergamo.js");
+  const ics = [
+    "BEGIN:VCALENDAR",
+    "BEGIN:VEVENT",
+    "UID:1@x",
+    "DTSTART;TZID=Europe/Rome:20261110T200000",
+    "SUMMARY:Concerto a Bergamo",
+    "LOCATION:Teatro Donizetti\, Via Vittorio Emanuele 13\, 24121 Bergamo BG",
+    "DESCRIPTION:Ingresso 12 euro",
+    "URL:https://www.eventi.bergamo.it/evento/a/",
+    "END:VEVENT",
+    "BEGIN:VEVENT",
+    "UID:2@x",
+    "DTSTART;TZID=Europe/Rome:20261111T200000",
+    "SUMMARY:Evento a Trento",
+    "LOCATION:Via X 1\, 38100 Trento TN",
+    "END:VEVENT",
+    "END:VCALENDAR",
+  ].join("\n");
+  const mockFetch = (async () => new Response(ics, { status: 200, headers: { "Content-Type": "text/calendar" } })) as unknown as typeof fetch;
+  const res = await bergamoSource.run(makeCtx({ fetchImpl: mockFetch, fromDate: "2026-11-01", toDate: "2026-11-30", limits: {} }));
+  assert.equal(res.events.length, 1);
+  assert.equal(res.events[0].title, "Concerto a Bergamo");
+  assert.equal(res.events[0].start, "2026-11-10");
+  assert.equal(res.events[0].timeStart, "20:00");
+  assert.equal(res.events[0].city, "BERGAMO");
+  assert.equal(res.events[0].priceMax, 12);
+  assert.equal((res.events[0] as any)._id, "1@x");
+});

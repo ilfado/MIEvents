@@ -166,6 +166,12 @@ export function isMiArea(text: string): boolean {
   return MI_CITY_RE.test(text) || MI_SIGLA_RE.test(text);
 }
 
+const AREA100_PROV_RE = /(?:^|[\s,(])(MI|MB|BG|BS|CR|CO|VA|LC)(?:[\s,).]|$)/i;
+
+export function isArea100Text(text: string): boolean {
+  return isMiArea(text) || AREA100_PROV_RE.test(text);
+}
+
 export function extractMiCity(text: string): string {
   const m = text.match(MI_CITY_RE);
   if (m) return m[1].toUpperCase();

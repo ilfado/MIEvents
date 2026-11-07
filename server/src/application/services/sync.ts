@@ -6,7 +6,7 @@ import { isBigEvent } from "../../core/big-events.js";
 import { parsePriceText } from "../../core/price.js";
 import { pinForVenue } from "../../core/venue-pins.js";
 import { syncWindow } from "../../core/types.js";
-import { distKm, isMiArea, MILANO_CENTER, normKey } from "../../core/text.js";
+import { distKm, isArea100Text, MILANO_CENTER, normKey } from "../../core/text.js";
 import { venueId } from "../../adapters/outbound/repositories/sqlite.js";
 import { runVenueSync } from "./venue-sync.js";
 import { lombardiaSagreSource } from "../../adapters/outbound/fetchers/lombardia.js";
@@ -17,6 +17,7 @@ import { cheventiSource } from "../../adapters/outbound/fetchers/cheventi.js";
 import { metalitaliaSource } from "../../adapters/outbound/fetchers/metalitalia.js";
 import { radiopunkSource } from "../../adapters/outbound/fetchers/radiopunk.js";
 import { panesalaminaSource } from "../../adapters/outbound/fetchers/panesalamina.js";
+import { bergamoSource } from "../../adapters/outbound/fetchers/bergamo.js";
 import { alcatrazSource, magnoliaSource } from "../../adapters/outbound/fetchers/wp-clubs.js";
 import { wikidataSource } from "../../adapters/outbound/fetchers/wikidata.js";
 import { santeriaSource } from "../../adapters/outbound/fetchers/wp-venues.js";
@@ -43,6 +44,7 @@ export function defaultSources(env: NodeJS.ProcessEnv): EventSource[] {
     metalitaliaSource,
     radiopunkSource,
     panesalaminaSource,
+    bergamoSource,
     alcatrazSource,
     magnoliaSource,
     wikidataSource,
@@ -205,7 +207,7 @@ export async function runSync(deps: SyncDeps, opts: SyncOptions = {}): Promise<S
           skipped++;
           continue;
         }
-      } else if (!isMiArea(`${d.venue ?? ""} ${d.address ?? ""} ${d.city}`)) {
+      } else if (!isArea100Text(`${d.venue ?? ""} ${d.address ?? ""} ${d.city}`)) {
         skipped++;
         continue;
       }
