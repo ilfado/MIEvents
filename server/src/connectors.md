@@ -206,3 +206,8 @@ I locali/location sono indicizzati in una tabella dedicata `venues(id, name, add
 - Magnolia: `circolomagnolia.it/wp-json/wp/v2/event_listing` (REST dà titolo/link; data da acf/meta/testo, altrimenti skip)
 - Venue fissa dal pin (Alcatraz / Circolo Magnolia) → coordinate pronte; prezzo da ACF `price` o testo; skip canceled/sold_out
 - Filtro globale in sync: `priceMax >= 35€` → skip (tutte le fonti)
+
+## PaneSalamina (feast CPT, BG/BS/CR entro 100km da Milano)
+- `panesalamina.com/wp-json/wp/v2/feast?per_page=100&page=N` — ACF: days[] (YYYYMMDD), address.lat/lng/city, evento_annullato
+- un evento con start=min(days), end=max(days); skip annullati; filtro geo <=100km da Milano (Bergamo/Brescia/Cremona) o testo MI; prezzo da `acf.enter`/testo; categoria sagra
+- dedup cross-fonte: stesso titolo normalizzato + start -> stesso id (merge con Regione Lombardia)

@@ -486,3 +486,21 @@ test("jsonld: city estratta dal testo indirizzo/venue se manca addressLocality (
   const d3 = ldToDraft(ev3 as never, "x", "X");
   assert.equal(d3?.city, "MILANO");
 });
+
+test("panesalamina: CPT feast via wp-json (days multi-giorno, geo 100km, skip annullati)", async () => {
+  const { panesalaminaSource } = await import("../adapters/outbound/fetchers/panesalamina.js");
+  const feasts = [
+    { id: 1, link: "https://www.panesalamina.com/feast/a/", title: { rendered: "Sagra del Formaggio" }, acf: { days: [{ day: "20261110" }, { day: "20261111" }], address: { address: "Via Roma 1, Bergamo", lat: 45.6983, lng: 9.6773, city: "Bergamo" }, evento_annullato: false, enter: "gratis" } },
+    { id: 2, link: "https://www.panesalamina.com/feast/b/", title: { rendered: "Festa Annullata" }, acf: { days: [{ day: "20261112" }], address: { address: "Via X, Verona", lat: 45.4384, lng: 10.9916, city: "Verona" }, evento_annullato: true } },
+    { id: 3, link: "https://www.panesalamina.com/feast/c/", title: { rendered: "Fuori Raggio" }, acf: { days: [{ day: "20261113" }], address: { address: "Via Y, Trento", lat: 46.0748, lng: 11.1217, city: "Trento" } } },
+  ];
+  const mockFetch = (async () => new Response(JSON.stringify(feasts), { status: 200, headers: { "Content-Type": "application/json" } })) as unknown as typeof fetch;
+  const res = await panesalaminaSource.run(makeCtx({ fetchImpl: mockFetch, fromDate: "2026-11-01", toDate: "2026-11-30", limits: {} }));
+  assert.equal(res.events.length, 1);
+  assert.equal(res.events[0].title, "Sagra del Formaggio");
+  assert.equal(res.events[0].start, "2026-11-10");
+  assert.equal(res.events[0].end, "2026-11-11");
+  assert.equal(res.events[0].lat, 45.6983);
+  assert.equal(res.events[0].city, "BERGAMO");
+  assert.equal((res.events[0] as any).categoryHint, "sagra");
+});

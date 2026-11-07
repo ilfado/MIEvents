@@ -16,6 +16,7 @@ import { milanotodaySource } from "../../adapters/outbound/fetchers/milanotoday.
 import { cheventiSource } from "../../adapters/outbound/fetchers/cheventi.js";
 import { metalitaliaSource } from "../../adapters/outbound/fetchers/metalitalia.js";
 import { radiopunkSource } from "../../adapters/outbound/fetchers/radiopunk.js";
+import { panesalaminaSource } from "../../adapters/outbound/fetchers/panesalamina.js";
 import { alcatrazSource, magnoliaSource } from "../../adapters/outbound/fetchers/wp-clubs.js";
 import { wikidataSource } from "../../adapters/outbound/fetchers/wikidata.js";
 import { santeriaSource } from "../../adapters/outbound/fetchers/wp-venues.js";
@@ -41,6 +42,7 @@ export function defaultSources(env: NodeJS.ProcessEnv): EventSource[] {
     cheventiSource,
     metalitaliaSource,
     radiopunkSource,
+    panesalaminaSource,
     alcatrazSource,
     magnoliaSource,
     wikidataSource,
